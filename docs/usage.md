@@ -48,10 +48,10 @@ Create or reuse an inventory file such as `ansible/inventory/hosts.ini`:
 127.0.0.1 ansible_connection=local
 ```
 
-Run the playbook:
+Run the playbook (the bundled `ansible.cfg` already points to the local inventory and roles directory):
 
 ```
-ansible-playbook -i ansible/inventory/hosts.ini ansible/playbooks/site.yml \
+ansible-playbook ansible/playbooks/site.yml \
   --extra-vars "xray_domain=example.com xray_email=admin@example.com xray_uuid=$(uuidgen)"
 ```
 
@@ -61,7 +61,7 @@ To validate changes without touching the host, add `--check` and `docker_compose
 To bypass existing certificates:
 
 ```
-ansible-playbook -i ansible/inventory/hosts.ini ansible/playbooks/site.yml \
+ansible-playbook ansible/playbooks/site.yml \
   --extra-vars "xray_domain=example.com xray_email=admin@example.com xray_uuid=$(uuidgen) force_regenerate_certs=true"
 ```
 
@@ -82,7 +82,7 @@ resource "null_resource" "xray" {
       "sudo apt-get update",
       "sudo apt-get install -y ansible",
       "cd /opt/less-vision",
-      "ansible-playbook -i ansible/inventory/hosts.ini ansible/playbooks/site.yml --extra-vars 'xray_domain=${var.domain} xray_email=${var.email} xray_uuid=${var.uuid}'"
+      "ansible-playbook ansible/playbooks/site.yml --extra-vars 'xray_domain=${var.domain} xray_email=${var.email} xray_uuid=${var.uuid}'"
     ]
   }
 }

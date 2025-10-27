@@ -24,6 +24,7 @@ This document tracks the evolving specification for the automated deployment of 
 - **Documentation**: `docs/usage.md` captures prerequisites, variable matrix, Terraform usage, and verification steps.
 - **Examples**: Inventory stub at `ansible/inventory/hosts.ini` and Terraform snippet under `terraform/examples/` (to be expanded with additional scenarios as needed).
 - **Automation**: GitHub Actions workflow `.github/workflows/ci.yml` installs Ansible and executes a syntax check on every push, pull request, or manual dispatch.
+- **Tooling Defaults**: Root-level `ansible.cfg` pins the default inventory and `roles_path` so operators (and CI) can run `ansible-playbook` from the repository root without extra flags.
 
 ## Certificate Handling Notes
 - Existing certificates are probed using `openssl` to prevent unnecessary re-issuance.
