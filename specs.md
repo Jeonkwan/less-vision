@@ -29,7 +29,7 @@ This document tracks the evolving specification for the automated deployment of 
 ## Certificate Handling Notes
 - Existing certificates are probed using `openssl` to prevent unnecessary re-issuance.
 - `force_regenerate_certs=true` forces a new certificate request and bypasses reuse logic.
-- Certificates are persisted under `{{ certificates_dir }}/live/{{ xray_domain }}` to mirror Let’s Encrypt layout and are mounted into the container at `/etc/ssl/xray`.
+- Certificates are persisted under `{{ certificates_dir }}/live/{{ xray_domain }}` to mirror Let’s Encrypt layout and the entire certificate tree is mounted into the container at `/etc/ssl`.
 - Check mode skips the potentially destructive certificate issuance step while still reporting when issuance would have occurred.
 
 ## Docker Compose Considerations
