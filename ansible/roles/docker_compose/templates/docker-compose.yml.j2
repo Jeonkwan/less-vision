@@ -6,6 +6,6 @@ services:
     restart: unless-stopped
     volumes:
       - "{{ xray_config_dir }}:/etc/xray:ro"
-      - "{{ certificates_dir }}/live/{{ xray_domain }}:/etc/ssl/xray:ro"
+      - "{{ certificates_dir }}:/etc/ssl:ro"
     ports:
       - "{{ xray_inbound_port }}:{{ xray_service_port }}"

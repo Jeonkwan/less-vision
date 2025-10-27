@@ -36,8 +36,8 @@ Pass the following variables via `--extra-vars` or inventory:
 | `xray_log_level` | `warning` | Log level for Xray. |
 | `compose_project_directory` | `{{ project_root }}/compose` | Directory containing rendered Docker Compose assets. |
 | `xray_image` | `teddysun/xray:latest` | Docker image used for the Xray service. |
-| `xray_container_certificate_path` | `/etc/ssl/xray/fullchain.pem` | Certificate path inside the container referenced by Xray config. |
-| `xray_container_private_key_path` | `/etc/ssl/xray/privkey.pem` | Private key path inside the container referenced by Xray config. |
+| `xray_container_certificate_path` | `/etc/ssl/live/{{ xray_domain }}/fullchain.pem` | Certificate path inside the container referenced by Xray config. |
+| `xray_container_private_key_path` | `/etc/ssl/live/{{ xray_domain }}/privkey.pem` | Private key path inside the container referenced by Xray config. |
 | `docker_compose_up` | `true` | Disable if you only want to render files without starting containers. |
 
 ## Running the Playbook
