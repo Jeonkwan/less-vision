@@ -1,0 +1,19 @@
+---
+project_root: "/opt/xray"
+certificates_dir: "{{ project_root }}/certificates"
+xray_domain: ""
+xray_certificate_path: "{{ certificates_dir }}/live/{{ xray_domain }}/fullchain.pem"
+xray_private_key_path: "{{ certificates_dir }}/live/{{ xray_domain }}/privkey.pem"
+xray_container_certificate_path: "/etc/ssl/xray/fullchain.pem"
+xray_container_private_key_path: "/etc/ssl/xray/privkey.pem"
+xray_config_dir: "{{ project_root }}/xray"
+compose_project_directory: "{{ project_root }}/compose"
+docker_compose_up: true
+xray_inbound_port: 443
+xray_service_port: "{{ xray_inbound_port }}"
+xray_flow: "xtls-rprx-vision"
+xray_client_email: "client@example.com"
+xray_log_level: "warning"
+xray_alpn:
+  - h2
+  - http/1.1
