@@ -1,0 +1,12 @@
+---
+project_root: "/opt/xray"
+certificates_dir: "{{ project_root }}/certificates"
+letsencrypt_image: "certbot/certbot:latest"
+letsencrypt_staging: false
+force_regenerate_certs: false
+xray_domain: ""
+xray_email: ""
+xray_certificate_path: "{{ certificates_dir }}/live/{{ xray_domain }}/fullchain.pem"
+xray_private_key_path: "{{ certificates_dir }}/live/{{ xray_domain }}/privkey.pem"
+xray_container_certificate_path: "/etc/ssl/xray/fullchain.pem"
+xray_container_private_key_path: "/etc/ssl/xray/privkey.pem"

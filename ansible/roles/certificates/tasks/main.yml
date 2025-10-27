@@ -1,0 +1,82 @@
+---
+- name: Ensure required variables for certificates are provided
+  ansible.builtin.assert:
+    that:
+      - xray_domain | length > 0
+      - xray_email | length > 0
+    fail_msg: "xray_domain and xray_email must be provided."
+
+- name: Ensure certificate directory exists
+  ansible.builtin.file:
+    path: "{{ certificates_dir }}"
+    state: directory
+    mode: "0750"
+
+- name: Check for existing certificate
+  ansible.builtin.stat:
+    path: "{{ xray_certificate_path }}"
+  register: certificate_file
+
+- name: Check for existing private key
+  ansible.builtin.stat:
+    path: "{{ xray_private_key_path }}"
+  register: private_key_file
+
+- name: Validate existing certificate
+  ansible.builtin.command: "openssl x509 -in {{ xray_certificate_path }} -noout"
+  register: certificate_validation
+  changed_when: false
+  ignore_errors: true
+  when: certificate_file.stat.exists
+
+- name: Validate existing private key
+  ansible.builtin.command: "openssl pkey -in {{ xray_private_key_path }} -noout"
+  register: private_key_validation
+  changed_when: false
+  ignore_errors: true
+  when: private_key_file.stat.exists
+
+- name: Determine if certificate issuance is required
+  ansible.builtin.set_fact:
+    _issue_certificate: >-
+      {{
+        force_regenerate_certs | bool
+        or (not certificate_file.stat.exists)
+        or (certificate_validation is defined and certificate_validation is failed)
+        or (not private_key_file.stat.exists)
+        or (private_key_validation is defined and private_key_validation is failed)
+      }}
+
+- name: Report skipped issuance during check mode
+  ansible.builtin.debug:
+    msg: >-
+      Certificate issuance would run because required assets are missing or invalid, but check mode is active.
+  when:
+    - ansible_check_mode
+    - _issue_certificate | bool
+
+- name: Issue or renew certificate with certbot container
+  ansible.builtin.command: >-
+    docker run --rm
+    -p 80:80
+    -v {{ certificates_dir }}:/etc/letsencrypt
+    {{ letsencrypt_image }}
+    certonly --standalone --preferred-challenges http --non-interactive --agree-tos
+    -m {{ xray_email }}
+    -d {{ xray_domain }}
+    {% if letsencrypt_staging | bool %}--staging{% endif %}
+  environment:
+    CERTBOT_NO_UPDATE_CHECK: "1"
+  when:
+    - _issue_certificate | bool
+    - not ansible_check_mode
+  register: certbot_run
+  changed_when: certbot_run.rc == 0
+  failed_when: certbot_run.rc != 0
+
+- name: Display certificate status
+  ansible.builtin.debug:
+    msg: >-
+      Using certificate at {{ xray_certificate_path }} and key at {{ xray_private_key_path }}.
+      Issued: {{ _issue_certificate | bool }}
+  when: not ansible_check_mode

@@ -1,0 +1,29 @@
+---
+- name: Ensure Xray UUID is provided
+  ansible.builtin.assert:
+    that:
+      - xray_uuid is defined
+      - xray_uuid | length > 0
+    fail_msg: "xray_uuid is required for Xray client configuration."
+
+- name: Ensure certificate paths are available
+  ansible.builtin.assert:
+    that:
+      - xray_certificate_path | length > 0
+      - xray_private_key_path | length > 0
+      - xray_container_certificate_path | length > 0
+      - xray_container_private_key_path | length > 0
+    fail_msg: "Certificate and key paths must be known before rendering Xray config."
+
+- name: Ensure Xray configuration directory exists
+  ansible.builtin.file:
+    path: "{{ xray_config_dir }}"
+    state: directory
+    mode: "0750"
+
+- name: Render Xray configuration
+  ansible.builtin.template:
+    src: config.json.j2
+    dest: "{{ xray_config_dir }}/config.json"
+    mode: "0640"
+  notify: Restart xray container
