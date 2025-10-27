@@ -1,0 +1,12 @@
+---
+- name: Restart xray container via compose
+  listen: Restart xray container
+  ansible.builtin.command: docker compose restart xray
+  args:
+    chdir: "{{ compose_project_directory }}"
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+  register: compose_restart
+  changed_when: compose_restart.rc == 0
+  failed_when: compose_restart.rc != 0

@@ -1,0 +1,11 @@
+version: "3.9"
+services:
+  xray:
+    image: "{{ xray_image }}"
+    container_name: xray
+    restart: unless-stopped
+    volumes:
+      - "{{ xray_config_dir }}:/etc/xray:ro"
+      - "{{ certificates_dir }}/live/{{ xray_domain }}:/etc/ssl/xray:ro"
+    ports:
+      - "{{ xray_inbound_port }}:{{ xray_service_port }}"

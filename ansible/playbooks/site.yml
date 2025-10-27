@@ -1,0 +1,10 @@
+---
+- name: Deploy Xray with VLESS XTLS Vision
+  hosts: all
+  become: true
+  vars:
+    project_root: "/opt/xray"
+  roles:
+    - certificates
+    - xray_config
+    - docker_compose

@@ -1,0 +1,10 @@
+---
+project_root: "/opt/xray"
+compose_project_directory: "{{ project_root }}/compose"
+certificates_dir: "{{ project_root }}/certificates"
+xray_config_dir: "{{ project_root }}/xray"
+xray_domain: ""
+xray_inbound_port: 443
+xray_service_port: "{{ xray_inbound_port }}"
+xray_image: "teddysun/xray:latest"
+docker_compose_up: true
