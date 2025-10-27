@@ -11,7 +11,7 @@ This document tracks the evolving specification for the automated deployment of 
   - Re-use existing certificates when present and valid.
   - Support optional forced regeneration while guarding against unnecessary issuance.
 - **Docker Compose**: Use the modern `docker compose` CLI to start the Xray container once preparation tasks finish.
-- **Documentation**: Provide detailed setup and usage instructions suitable for operators and Terraform integration.
+- **Documentation**: Provide detailed setup and usage instructions suitable for operators, Terraform integration, and GitHub Actions automation.
 
 ## Implemented Structure
 - **Playbook**: `ansible/playbooks/site.yml` runs three roles in order with privilege escalation.
@@ -19,11 +19,13 @@ This document tracks the evolving specification for the automated deployment of 
   - `certificates`: validates existing Let’s Encrypt assets, optionally re-issues them using a disposable `certbot/certbot` container, and exposes both host and in-container paths for downstream roles.
   - `xray_config`: templates the VLESS inbound configuration with the `xtls-rprx-vision` flow and container-aware certificate paths.
   - `docker_compose`: renders `docker-compose.yml`, ensures project directories exist, and optionally runs `docker compose up -d`.
-- **Variables**: All runtime values (domain, email, UUID, ports, image, etc.) are provided through Ansible variables with sane defaults where possible.
-- **Shared Defaults**: Each role now defines the certificate and configuration path variables it consumes, eliminating hidden cross-role dependencies.
-- **Documentation**: `docs/usage.md` captures prerequisites, variable matrix, Terraform usage, and verification steps.
+- **Variables**: All runtime values (domain, email, UUID, ports, image, ALPN, etc.) are provided through Ansible variables with sane defaults where possible.
+- **Shared Defaults**: Each role defines the certificate, configuration, and Compose path variables it consumes, eliminating hidden cross-role dependencies.
+- **Documentation**: `docs/usage.md` captures prerequisites, variable matrix, Terraform usage, GitHub Actions deployment notes, and verification steps.
 - **Examples**: Inventory stub at `ansible/inventory/hosts.ini` and Terraform snippet under `terraform/examples/` (to be expanded with additional scenarios as needed).
-- **Automation**: GitHub Actions workflow `.github/workflows/ci.yml` installs Ansible and executes a syntax check on every push, pull request, or manual dispatch.
+- **Automation**:
+  - `.github/workflows/ci.yml` installs Ansible and executes a syntax check on every push, pull request, or manual dispatch.
+  - `.github/workflows/deploy.yml` validates requested environments, enforces required secrets/variables, generates a temporary inventory, runs the playbook remotely, and outputs ready-to-import client URIs.
 - **Tooling Defaults**: Root-level `ansible.cfg` pins the default inventory and `roles_path` so operators (and CI) can run `ansible-playbook` from the repository root without extra flags.
 
 ## Certificate Handling Notes

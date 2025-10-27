@@ -35,9 +35,11 @@ Pass the following variables via `--extra-vars` or inventory:
 | `xray_client_email` | `client@example.com` | Identifier stored in the Xray client list. |
 | `xray_log_level` | `warning` | Log level for Xray. |
 | `compose_project_directory` | `{{ project_root }}/compose` | Directory containing rendered Docker Compose assets. |
+| `xray_config_dir` | `{{ project_root }}/xray` | Directory where `config.json` is rendered. |
 | `xray_image` | `teddysun/xray:latest` | Docker image used for the Xray service. |
 | `xray_container_certificate_path` | `/etc/ssl/live/{{ xray_domain }}/fullchain.pem` | Certificate path inside the container referenced by Xray config. |
 | `xray_container_private_key_path` | `/etc/ssl/live/{{ xray_domain }}/privkey.pem` | Private key path inside the container referenced by Xray config. |
+| `xray_alpn` | `["h2", "http/1.1"]` | ALPN values advertised to TLS clients. |
 | `docker_compose_up` | `true` | Disable if you only want to render files without starting containers. |
 
 ## Running the Playbook
@@ -66,32 +68,33 @@ ansible-playbook ansible/playbooks/site.yml \
 ```
 
 ### Running from Terraform
-Example snippet located at [`terraform/examples/main.tf`](../terraform/examples/main.tf).
+An end-to-end example is located at [`terraform/examples/main.tf`](../terraform/examples/main.tf). It connects over SSH to a remote host where this repository is checked out and executes the playbook with the variables provided by Terraform:
 
 ```
 resource "null_resource" "xray" {
   provisioner "remote-exec" {
     connection {
-      type     = "ssh"
-      user     = "ubuntu"
-      host     = var.public_ip
-      password = var.ssh_password
+      type    = "ssh"
+      host    = var.host
+      user    = var.user
+      agent   = true
+      timeout = "5m"
     }
 
     inline = [
-      "sudo apt-get update",
-      "sudo apt-get install -y ansible",
-      "cd /opt/less-vision",
-      "ansible-playbook ansible/playbooks/site.yml --extra-vars 'xray_domain=${var.domain} xray_email=${var.email} xray_uuid=${var.uuid}'"
+      "sudo ansible-playbook -i /opt/less-vision/ansible/inventory/hosts.ini /opt/less-vision/ansible/playbooks/site.yml --extra-vars 'xray_domain=${var.domain} xray_email=${var.email} xray_uuid=${var.uuid}'"
     ]
   }
 }
 ```
 
-Adjust according to your provisioning strategy (e.g., `local-exec` if running Ansible from Terraform controller).
+Adjust the inline commands to fit your provisioning flow (for example, install Ansible on the remote host or run the playbook locally with `local-exec`).
+
+### Deploying from GitHub Actions
+Manual deployments can be triggered with the [`Deploy service`](../.github/workflows/deploy.yml) workflow. It validates that the requested GitHub Environment exists, checks for the required secrets (`HOST_SSH_PRIVATE_KEY`, `EMAIL`, `UUID`) and environment variables (`REMOTE_SERVER_IP_ADDRESS`, `REMOTE_SERVER_USER`, `TARGET_DOMAIN_NAME`, optional `XRAY_INBOUND_PORT`), then dynamically builds an inventory file before running the same playbook via SSH. Successful runs print ready-to-import client connection URIs for popular applications.
 
 ## Continuous Integration
-The repository ships with a GitHub Actions workflow that installs Ansible and runs `ansible-playbook --syntax-check` for every push, pull request, or manual dispatch. Use it as a guardrail before promoting infrastructure changes.
+The [`CI`](../.github/workflows/ci.yml) workflow installs Ansible and runs `ansible-playbook --syntax-check` for every push, pull request, or manual dispatch. Use it as a guardrail before promoting infrastructure changes.
 
 ## Verification Steps
 1. Verify containers are running: `docker compose -f /opt/xray/compose/docker-compose.yml ps`.
@@ -103,4 +106,3 @@ The repository ships with a GitHub Actions workflow that installs Ansible and ru
 - **DNS propagation**: Ensure your domain resolves to the host before issuance.
 - **Rate limits**: Use `letsencrypt_staging=true` during initial testing.
 - **Permission issues**: Run playbook with sudo/become if writing under `/opt`.
-
