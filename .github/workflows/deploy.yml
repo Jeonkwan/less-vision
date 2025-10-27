@@ -153,52 +153,42 @@ jobs:
           fi
 
           export CLIENT_NAME="Less Vision (${DOMAIN})"
-          NAME_ENCODED=$(python - <<'PY'
-import os
-import urllib.parse
-
-print(urllib.parse.quote(os.environ["CLIENT_NAME"]))
-PY
-)
+          NAME_ENCODED=$(python -c "import os, urllib.parse; print(urllib.parse.quote(os.environ['CLIENT_NAME']))")
 
           ALPN_ENCODED="h2%2Chttp%2F1.1"
 
           SHADOWROCKET_URI="vless://${UUID}@${DOMAIN}:${PORT}?encryption=none&security=tls&type=tcp&flow=${FLOW}&sni=${DOMAIN}&alpn=${ALPN_ENCODED}#${NAME_ENCODED}"
           CLASH_META_URI="vless://${UUID}@${DOMAIN}:${PORT}?encryption=none&security=tls&type=tcp&flow=${FLOW}&sni=${DOMAIN}&alpn=${ALPN_ENCODED}&fp=chrome#${NAME_ENCODED}"
 
-          CLASH_VERGE_BLOCK=$(cat <<EOF
-  - name: Less Vision (${DOMAIN})
-    type: vless
-    server: ${DOMAIN}
-    port: ${PORT}
-    uuid: ${UUID}
-    cipher: none
-    tls: true
-    network: tcp
-    flow: ${FLOW}
-    udp: true
-    servername: ${DOMAIN}
-    alpn:
-      - h2
-      - http/1.1
-EOF
-)
+          CLASH_VERGE_BLOCK=$(printf '%s\n' \
+            "- name: Less Vision (${DOMAIN})" \
+            "  type: vless" \
+            "  server: ${DOMAIN}" \
+            "  port: ${PORT}" \
+            "  uuid: ${UUID}" \
+            "  cipher: none" \
+            "  tls: true" \
+            "  network: tcp" \
+            "  flow: ${FLOW}" \
+            "  udp: true" \
+            "  servername: ${DOMAIN}" \
+            "  alpn:" \
+            "    - h2" \
+            "    - http/1.1")
 
-          cat <<EOF
-============================================================
-Client Configuration Summary
-============================================================
-
-Shadowrocket (iOS)
-------------------
-${SHADOWROCKET_URI}
-
-Clash Meta (Android)
---------------------
-${CLASH_META_URI}
-
-Clash Verge (macOS)
--------------------
-${CLASH_VERGE_BLOCK}
-
-EOF
+          printf '%s\n' \
+            "============================================================" \
+            "Client Configuration Summary" \
+            "============================================================" \
+            "" \
+            "Shadowrocket (iOS)" \
+            "------------------" \
+            "${SHADOWROCKET_URI}" \
+            "" \
+            "Clash Meta (Android)" \
+            "--------------------" \
+            "${CLASH_META_URI}" \
+            "" \
+            "Clash Verge (macOS)" \
+            "-------------------" \
+            "${CLASH_VERGE_BLOCK}"
