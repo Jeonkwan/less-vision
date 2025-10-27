@@ -1,0 +1,85 @@
+name: Deploy service
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to remote server
+    runs-on: ubuntu-latest
+    environment: flatwhite
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+
+      - name: Validate required secrets and variables
+        env:
+          HOST_SSH_PRIVATE_KEY: ${{ secrets.HOST_SSH_PRIVATE_KEY }}
+          EMAIL: ${{ secrets.EMAIL }}
+          UUID: ${{ secrets.UUID }}
+          REMOTE_SERVER_IP_ADDRESS: ${{ vars.REMOTE_SERVER_IP_ADDRESS }}
+          REMOTE_SERVER_USER: ${{ vars.REMOTE_SERVER_USER }}
+          TARGET_DOMAIN_NAME: ${{ vars.TARGET_DOMAIN_NAME }}
+        run: |
+          missing=0
+          check_required() {
+            if [ -z "$1" ]; then
+              echo "::error::Missing required $2"
+              missing=1
+            fi
+          }
+
+          check_required "$HOST_SSH_PRIVATE_KEY" "secret HOST_SSH_PRIVATE_KEY"
+          check_required "$EMAIL" "secret EMAIL"
+          check_required "$UUID" "secret UUID"
+          check_required "$REMOTE_SERVER_IP_ADDRESS" "environment variable REMOTE_SERVER_IP_ADDRESS"
+          check_required "$REMOTE_SERVER_USER" "environment variable REMOTE_SERVER_USER"
+          check_required "$TARGET_DOMAIN_NAME" "environment variable TARGET_DOMAIN_NAME"
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Configure SSH for Ansible
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.HOST_SSH_PRIVATE_KEY }}
+          SSH_PUBLIC_KEY: ${{ secrets.HOST_SSH_PUBLIC_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          if [ -n "$SSH_PUBLIC_KEY" ]; then
+            echo "$SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
+            chmod 644 ~/.ssh/id_rsa.pub
+          fi
+          ssh-keyscan -H "${{ vars.REMOTE_SERVER_IP_ADDRESS }}" >> ~/.ssh/known_hosts
+
+      - name: Create dynamic inventory
+        run: |
+          printf '%s\n' \
+            '[remote]' \
+            'remote ansible_host=${{ vars.REMOTE_SERVER_IP_ADDRESS }} ansible_user=${{ vars.REMOTE_SERVER_USER }} ansible_ssh_private_key_file=~/.ssh/id_rsa ansible_python_interpreter=/usr/bin/python3 ansible_become=true ansible_become_method=sudo' \
+            > ansible/inventory/remote.ini
+
+      - name: Run Ansible playbook
+        env:
+          ANSIBLE_CONFIG: ansible.cfg
+        run: |
+          ansible-playbook ansible/playbooks/site.yml \
+            -i ansible/inventory/remote.ini \
+            --extra-vars "xray_domain=${{ vars.TARGET_DOMAIN_NAME }} xray_email=${{ secrets.EMAIL }} xray_uuid=${{ secrets.UUID }}"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_rsa ~/.ssh/id_rsa.pub
