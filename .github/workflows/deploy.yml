@@ -152,6 +152,12 @@ jobs:
             exit 1
           fi
 
+          if ! command -v qrencode >/dev/null 2>&1; then
+            echo "Installing qrencode for QR code output..."
+            sudo apt-get update
+            sudo apt-get install -y qrencode
+          fi
+
           export CLIENT_NAME="Less Vision (${DOMAIN})"
           NAME_ENCODED=$(python -c "import os, urllib.parse; print(urllib.parse.quote(os.environ['CLIENT_NAME']))")
 
@@ -176,6 +182,22 @@ jobs:
             "    - h2" \
             "    - http/1.1")
 
+          print_qr_section() {
+            local label="$1"
+            local uri="$2"
+
+            printf '\n%s\n' "$label"
+            printf '%s\n\n' "$(printf '%*s' "${#label}" '' | tr ' ' '-')"
+            printf '%s\n\n' "$uri"
+
+            if command -v qrencode >/dev/null 2>&1; then
+              qrencode -t ansiutf8 <<< "$uri"
+              printf '\n'
+            else
+              echo "::warning::qrencode is not available; skipping QR code generation for $label."
+            fi
+          }
+
           printf '%s\n' \
             "============================================================" \
             "Client Configuration Summary" \
@@ -192,3 +214,6 @@ jobs:
             "Clash Verge (macOS)" \
             "-------------------" \
             "${CLASH_VERGE_BLOCK}"
+
+          print_qr_section "Shadowrocket (iOS) QR" "$SHADOWROCKET_URI"
+          print_qr_section "Clash Meta (Android) QR" "$CLASH_META_URI"
