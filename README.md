@@ -6,7 +6,7 @@ Automated deployment toolkit for running [Xray](https://github.com/XTLS/Xray-cor
 - **Idempotent Ansible Playbook** – Roles manage certificates, Xray configuration, and Docker Compose.
 - **Certificate Safety** – Existing Let’s Encrypt certificates are re-used when valid, with an option to force regeneration.
 - **Infrastructure Ready** – Terraform example shows how to execute the playbook during VM provisioning.
-- **Continuous Checks** – GitHub Actions workflow validates playbook syntax on pushes and pull requests.
+- **Continuous Checks** – GitHub Actions workflow validates syntax and performs a safe dry run on pushes and pull requests.
 - **Comprehensive Docs** – Detailed usage guide and living specification to keep the deployment process transparent.
 
 ## Repository Layout

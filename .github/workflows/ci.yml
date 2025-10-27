@@ -27,3 +27,10 @@ jobs:
       - name: Run ansible syntax check
         run: |
           python -m ansible.cli.playbook --syntax-check ansible/playbooks/site.yml -i ansible/inventory/hosts.ini
+
+      - name: Dry-run playbook with sample variables
+        run: |
+          python -m ansible.cli.playbook ansible/playbooks/site.yml \
+            -i ansible/inventory/hosts.ini \
+            --check \
+            -e "project_root=/tmp/xray-test xray_domain=example.com xray_email=admin@example.com xray_uuid=00000000-0000-0000-0000-000000000000 docker_compose_up=false"

@@ -91,7 +91,7 @@ resource "null_resource" "xray" {
 Adjust according to your provisioning strategy (e.g., `local-exec` if running Ansible from Terraform controller).
 
 ## Continuous Integration
-The repository ships with a GitHub Actions workflow that installs Ansible and runs `ansible-playbook --syntax-check` for every push, pull request, or manual dispatch. Use it as a guardrail before promoting infrastructure changes.
+The repository ships with a GitHub Actions workflow that installs Ansible, performs a syntax check, and then runs the playbook in `--check` mode with sample variables. The dry run renders templates without touching Docker or requesting certificates, ensuring the roles remain self-contained and safe to execute in automation.
 
 ## Verification Steps
 1. Verify containers are running: `docker compose -f /opt/xray/compose/docker-compose.yml ps`.

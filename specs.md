@@ -23,7 +23,7 @@ This document tracks the evolving specification for the automated deployment of 
 - **Shared Defaults**: Each role now defines the certificate and configuration path variables it consumes, eliminating hidden cross-role dependencies.
 - **Documentation**: `docs/usage.md` captures prerequisites, variable matrix, Terraform usage, and verification steps.
 - **Examples**: Inventory stub at `ansible/inventory/hosts.ini` and Terraform snippet under `terraform/examples/` (to be expanded with additional scenarios as needed).
-- **Automation**: GitHub Actions workflow `.github/workflows/ci.yml` installs Ansible and executes a syntax check on every push, pull request, or manual dispatch using `python -m ansible.cli.playbook` to avoid PATH discrepancies across environments.
+- **Automation**: GitHub Actions workflow `.github/workflows/ci.yml` installs Ansible, executes a syntax check, and then exercises the playbook in `--check` mode with representative variables. Both steps run via `python -m ansible.cli.playbook` to avoid PATH discrepancies across environments.
 - **Tooling Defaults**: Root-level `ansible.cfg` pins the default inventory and `roles_path` so operators (and CI) can run `ansible-playbook` from the repository root without extra flags.
 
 ## Certificate Handling Notes
