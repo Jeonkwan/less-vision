@@ -2,12 +2,56 @@ name: Deploy service
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        type: choice
+        options:
+          - flatwhite
 
 jobs:
+  validate-environment:
+    name: Validate requested environment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.validate.outputs.environment }}
+    steps:
+      - name: Ensure environment exists
+        id: validate
+        env:
+          REQUESTED_ENVIRONMENT: ${{ github.event.inputs.environment }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ -z "$REQUESTED_ENVIRONMENT" ]; then
+            echo "::error::No environment provided. Choose an environment before running the workflow."
+            exit 1
+          fi
+
+          api_url="https://api.github.com/repos/$REPOSITORY/environments/$REQUESTED_ENVIRONMENT"
+          status=$(curl -sS \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -o "$RUNNER_TEMP/environment.json" \
+            -w '%{http_code}' \
+            "$api_url")
+
+          if [ "$status" -ne 200 ]; then
+            if [ -f "$RUNNER_TEMP/environment.json" ]; then
+              echo "::debug::$(cat "$RUNNER_TEMP/environment.json")"
+            fi
+            echo "::error::Environment '$REQUESTED_ENVIRONMENT' was not found in repository '$REPOSITORY'."
+            exit 1
+          fi
+
+          echo "environment=$REQUESTED_ENVIRONMENT" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Deploy to remote server
     runs-on: ubuntu-latest
-    environment: flatwhite
+    needs: validate-environment
+    environment: ${{ needs.validate-environment.outputs.environment }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
