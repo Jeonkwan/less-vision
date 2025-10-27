@@ -64,7 +64,7 @@ jobs:
       - name: Install Ansible
         run: |
           python -m pip install --upgrade pip
-          pip install ansible
+          pip install ansible "qrcode[pil]"
 
       - name: Validate required secrets and variables
         env:
@@ -122,6 +122,33 @@ jobs:
           ansible-playbook ansible/playbooks/site.yml \
             -i ansible/inventory/remote.ini \
             --extra-vars "xray_domain=${{ vars.TARGET_DOMAIN_NAME }} xray_email=${{ secrets.EMAIL }} xray_uuid=${{ secrets.UUID }}"
+
+      - name: Generate deployment QR code
+        env:
+          TARGET_DOMAIN_NAME: ${{ vars.TARGET_DOMAIN_NAME }}
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+
+          import qrcode
+
+          domain = os.environ.get("TARGET_DOMAIN_NAME", "").strip()
+          if not domain:
+            sys.exit("Missing TARGET_DOMAIN_NAME for QR code generation")
+
+          url = domain if domain.startswith(("http://", "https://")) else f"https://{domain}"
+          img = qrcode.make(url)
+          output_path = "deployment-qr.png"
+          img.save(output_path)
+          print(f"Generated QR code at {output_path} for {url}")
+          PY
+
+      - name: Upload deployment QR code
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-qr-code
+          path: deployment-qr.png
 
       - name: Cleanup SSH key
         if: always()
