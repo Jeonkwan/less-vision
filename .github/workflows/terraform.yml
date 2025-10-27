@@ -1,0 +1,44 @@
+name: Terraform
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Terraform workspace to target"
+        required: true
+        default: example
+        type: choice
+        options:
+          - example
+
+permissions:
+  contents: read
+
+env:
+  TF_PLUGIN_CACHE_DIR: ${{ runner.temp }}/terraform-plugin-cache
+
+jobs:
+  plan:
+    name: Terraform plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: terraform/examples
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: terraform plan -input=false
