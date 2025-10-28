@@ -10,7 +10,7 @@
   ansible.builtin.file:
     path: "{{ certificates_dir }}"
     state: directory
-    mode: "0750"
+    mode: "0755"
 
 - name: Check for existing certificate
   ansible.builtin.stat:

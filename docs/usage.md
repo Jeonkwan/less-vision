@@ -37,6 +37,10 @@ Pass the following variables via `--extra-vars` or inventory:
 | `compose_project_directory` | `{{ project_root }}/compose` | Directory containing rendered Docker Compose assets. |
 | `xray_config_dir` | `{{ project_root }}/xray` | Directory where `config.json` is rendered. |
 | `xray_image` | `ghcr.io/xtls/xray-core:25.10.15` | Docker image used for the Xray service. |
+| `xray_container_user` | `0:0` | UID:GID that the Xray container runs as. Set to an empty string to use the image default. |
+| `xray_container_name` | `xray` | Container name used for stability checks and manual troubleshooting. |
+| `xray_stability_check_count` | `3` | Number of post-deployment stability samples collected by the playbook. |
+| `xray_stability_check_delay` | `30` | Seconds to wait before each automatic stability sample. |
 | `xray_container_certificate_path` | `/etc/ssl/live/{{ xray_domain }}/fullchain.pem` | Certificate path inside the container referenced by Xray config. |
 | `xray_container_private_key_path` | `/etc/ssl/live/{{ xray_domain }}/privkey.pem` | Private key path inside the container referenced by Xray config. |
 | `xray_alpn` | `["h2", "http/1.1"]` | ALPN values advertised to TLS clients. |
@@ -97,6 +101,8 @@ Manual deployments can be triggered with the [`Deploy service`](../.github/workf
 The [`CI`](../.github/workflows/ci.yml) workflow installs Ansible and runs `ansible-playbook --syntax-check` for every push, pull request, or manual dispatch. Use it as a guardrail before promoting infrastructure changes.
 
 ## Verification Steps
+The playbook now samples the Docker status of the Xray container three times at 30-second intervals immediately after startup. If any sample reports a restarting state, the run fails to highlight an unstable deployment.
+
 1. Verify containers are running: `docker compose -f /opt/xray/compose/docker-compose.yml ps`.
 2. Test TLS certificate: `openssl s_client -connect example.com:443 -servername example.com`.
 3. Validate Xray config inside container: `docker compose -f /opt/xray/compose/docker-compose.yml exec xray xray -test -confdir /usr/local/etc/xray`.

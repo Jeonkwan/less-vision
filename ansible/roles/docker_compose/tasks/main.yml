@@ -27,3 +27,22 @@
     - not ansible_check_mode
   register: compose_up
   changed_when: compose_up.rc == 0
+
+- name: Validate Xray container stability attempt {{ item }}
+  ansible.builtin.shell: |
+    sleep {{ xray_stability_check_delay }}
+    docker inspect -f '{{ '{{' }} .State.Status {{ '}}' }}' {{ xray_container_name }}
+  args:
+    executable: /bin/bash
+  register: xray_stability_check
+  loop: "{{ range(1, xray_stability_check_count + 1) | list }}"
+  loop_control:
+    label: "attempt {{ item }}"
+  changed_when: false
+  failed_when:
+    - xray_stability_check.rc != 0
+    - xray_stability_check.stdout is not defined or (xray_stability_check.stdout | trim) == ''
+    - (xray_stability_check.stdout | trim | lower) != 'running'
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
