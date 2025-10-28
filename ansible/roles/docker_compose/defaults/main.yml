@@ -13,3 +13,5 @@ xray_stability_check_count: 3
 xray_stability_check_delay: 30
 xray_failure_log_lines: 200
 docker_compose_up: true
+docker_compose_down_before_up: true
+docker_compose_remove_orphans: true

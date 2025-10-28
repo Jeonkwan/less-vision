@@ -7,6 +7,8 @@
   when:
     - docker_compose_up | bool
     - not ansible_check_mode
+  environment:
+    COMPOSE_FILE: "{{ compose_project_directory }}/docker-compose.yml"
   register: compose_restart
   changed_when: compose_restart.rc == 0
   failed_when: compose_restart.rc != 0
