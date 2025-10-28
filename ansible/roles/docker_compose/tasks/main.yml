@@ -28,21 +28,72 @@
   register: compose_up
   changed_when: compose_up.rc == 0
 
-- name: Validate Xray container stability attempt {{ item }}
-  ansible.builtin.shell: |
-    sleep {{ xray_stability_check_delay }}
-    docker inspect -f '{{ '{{' }} .State.Status {{ '}}' }}' {{ xray_container_name }}
-  args:
-    executable: /bin/bash
-  register: xray_stability_check
-  loop: "{{ range(1, xray_stability_check_count + 1) | list }}"
-  loop_control:
-    label: "attempt {{ item }}"
-  changed_when: false
-  failed_when:
-    - xray_stability_check.rc != 0
-    - xray_stability_check.stdout is not defined or (xray_stability_check.stdout | trim) == ''
-    - (xray_stability_check.stdout | trim | lower) != 'running'
+- name: Validate Xray container stability
   when:
     - docker_compose_up | bool
     - not ansible_check_mode
+  block:
+    - name: Validate Xray container stability attempt {{ item }}
+      ansible.builtin.shell: |
+        sleep {{ xray_stability_check_delay }}
+        docker inspect -f '{{ '{{' }} .State.Status {{ '}}' }}' {{ xray_container_name }}
+      args:
+        executable: /bin/bash
+      register: xray_stability_check
+      loop: "{{ range(1, xray_stability_check_count + 1) | list }}"
+      loop_control:
+        label: "attempt {{ item }}"
+      changed_when: false
+      failed_when:
+        - xray_stability_check.rc != 0
+        - xray_stability_check.stdout is not defined or (xray_stability_check.stdout | trim) == ''
+        - (xray_stability_check.stdout | trim | lower) != 'running'
+  rescue:
+    - name: Gather Xray container status
+      ansible.builtin.command: docker inspect -f '{{ '{{' }} .State.Status {{ '}}' }}' {{ xray_container_name }}
+      register: xray_container_status
+      failed_when: false
+      changed_when: false
+
+    - name: Gather Xray container health status
+      ansible.builtin.command: docker inspect -f '{{ '{{' }} .State.Health.Status {{ '}}' }}' {{ xray_container_name }}
+      register: xray_container_health
+      failed_when: false
+      changed_when: false
+
+    - name: Gather Xray container restart count
+      ansible.builtin.command: docker inspect -f '{{ '{{' }} .State.RestartCount {{ '}}' }}' {{ xray_container_name }}
+      register: xray_container_restart_count
+      failed_when: false
+      changed_when: false
+
+    - name: Gather recent Xray container logs
+      ansible.builtin.command: docker logs --tail {{ xray_failure_log_lines }} {{ xray_container_name }}
+      register: xray_container_logs
+      failed_when: false
+      changed_when: false
+
+    - name: Display Xray container status details
+      ansible.builtin.debug:
+        msg:
+          - "Xray container status: {{ (xray_container_status.stdout | default(xray_container_status.stderr | default('unknown', true), true)) | trim }}"
+          - "Xray container health status: {{ (xray_container_health.stdout | default(xray_container_health.stderr | default('unavailable', true), true)) | trim }}"
+          - "Xray container restart count: {{ (xray_container_restart_count.stdout | default(xray_container_restart_count.stderr | default('unknown', true), true)) | trim }}"
+
+    - name: Display Xray container logs
+      ansible.builtin.debug:
+        msg: |-
+          Recent Xray container logs (last {{ xray_failure_log_lines }} lines):
+          {{ (xray_container_logs.stdout_lines | default([xray_container_logs.stdout | default('No logs available', true)])) | join('\n') }}
+
+    - name: Display Xray container log errors
+      ansible.builtin.debug:
+        msg: |-
+          Recent Xray container log errors:
+          {{ (xray_container_logs.stderr_lines | default([xray_container_logs.stderr | default('', true)])) | reject('equalto', '') | list | join('\n') }}
+      when: (xray_container_logs.stderr is defined and (xray_container_logs.stderr | length > 0)) or (xray_container_logs.stderr_lines is defined and (xray_container_logs.stderr_lines | length > 0))
+
+    - name: Fail because the Xray container is not running
+      ansible.builtin.fail:
+        msg: >-
+          Xray container failed to reach the running state after {{ xray_stability_check_count }} attempts. Review the status and logs above for more details.
