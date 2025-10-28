@@ -11,6 +11,30 @@
     state: directory
     mode: "0750"
 
+- name: Check for existing docker compose project file
+  ansible.builtin.stat:
+    path: "{{ compose_project_directory }}/docker-compose.yml"
+  register: docker_compose_file
+
+- name: Stop existing docker compose project
+  ansible.builtin.command: >-
+    docker compose down{{ ' --remove-orphans' if docker_compose_remove_orphans | bool else '' }}
+  args:
+    chdir: "{{ compose_project_directory }}"
+  when:
+    - docker_compose_up | bool
+    - docker_compose_down_before_up | bool
+    - not ansible_check_mode
+    - docker_compose_file.stat.exists
+  environment:
+    COMPOSE_FILE: "{{ compose_project_directory }}/docker-compose.yml"
+  register: compose_down
+  changed_when: >-
+    compose_down.rc == 0 and (
+      (compose_down.stdout | default('') | trim | length) > 0 or
+      (compose_down.stderr | default('') | trim | length) > 0
+    )
+
 - name: Render Docker Compose file
   ansible.builtin.template:
     src: docker-compose.yml.j2
@@ -25,6 +49,8 @@
   when:
     - docker_compose_up | bool
     - not ansible_check_mode
+  environment:
+    COMPOSE_FILE: "{{ compose_project_directory }}/docker-compose.yml"
   register: compose_up
   changed_when: compose_up.rc == 0
 
