@@ -5,9 +5,9 @@ services:
     image: "{{ xray_image }}"
     container_name: "{{ xray_container_name }}"
     restart: unless-stopped
-{%- if xray_container_user %}
+{% if xray_container_user %}
     user: "{{ xray_container_user }}"
-{%- endif %}
+{% endif %}
     volumes:
       - "{{ xray_config_dir }}:/usr/local/etc/xray:ro"
       - "{{ certificates_dir }}:/etc/ssl:ro"

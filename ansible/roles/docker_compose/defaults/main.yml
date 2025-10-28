@@ -9,8 +9,6 @@ xray_service_port: "{{ xray_inbound_port }}"
 xray_image: "ghcr.io/xtls/xray-core:25.10.15"
 xray_container_user: "0:0"
 xray_container_name: "xray"
-xray_stability_check_count: 3
-xray_stability_check_delay: 30
 xray_failure_log_lines: 200
 docker_compose_up: true
 docker_compose_down_before_up: true

@@ -66,6 +66,74 @@
     mode: "0640"
   notify: Restart xray container
 
+- name: Discover conflicting Xray containers
+  ansible.builtin.shell: |
+    set -o pipefail
+    docker ps --format '{{ "{{" }}.ID{{ "}}" }} {{ "{{" }}.Image{{ "}}" }} {{ "{{" }}.Ports{{ "}}" }}' \
+    | while read -r id image ports; do
+        if [ -z "${id}" ]; then
+          continue
+        fi
+        if echo "${ports}" | grep -q '443'; then
+          echo "${id}"
+          continue
+        fi
+        if echo "${image}" | grep -iq 'xray'; then
+          echo "${id}"
+        fi
+      done \
+    | sort -u
+  args:
+    executable: /bin/bash
+  register: xray_conflicting_containers
+  changed_when: false
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+
+- name: Collect conflicting Xray container ids
+  ansible.builtin.set_fact:
+    xray_conflicting_container_ids: "{{ xray_conflicting_containers.stdout_lines | map('trim') | reject('equalto', '') | list }}"
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_conflicting_containers is defined
+
+- name: Display conflicting Xray containers
+  ansible.builtin.debug:
+    msg: >-
+      Found existing Xray-related containers that will be stopped: {{ xray_conflicting_container_ids | join(', ') }}
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_conflicting_container_ids is defined
+    - xray_conflicting_container_ids | length > 0
+
+- name: Report when no conflicting Xray containers are running
+  ansible.builtin.debug:
+    msg: No running containers matching the Xray image or port 443 were found.
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_conflicting_container_ids is defined
+    - xray_conflicting_container_ids | length == 0
+
+- name: Stop conflicting Xray containers
+  ansible.builtin.command: docker stop {{ item }}
+  loop: "{{ xray_conflicting_container_ids | default([]) }}"
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_conflicting_container_ids | length > 0
+
+- name: Remove conflicting Xray containers
+  ansible.builtin.command: docker rm {{ item }}
+  loop: "{{ xray_conflicting_container_ids | default([]) }}"
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_conflicting_container_ids | length > 0
+
 - name: Run docker compose up
   ansible.builtin.command: docker compose up -d
   args:
@@ -78,72 +146,50 @@
   register: compose_up
   changed_when: compose_up.rc == 0
 
-- name: Validate Xray container stability
+- name: Wait for Xray container to initialize
+  ansible.builtin.pause:
+    seconds: 30
   when:
     - docker_compose_up | bool
     - not ansible_check_mode
-  block:
-    - name: Validate Xray container stability attempt {{ item }}
-      ansible.builtin.shell: |
-        sleep {{ xray_stability_check_delay }}
-        docker inspect -f '{{ '{{' }} .State.Status {{ '}}' }}' {{ xray_container_name }}
-      args:
-        executable: /bin/bash
-      register: xray_stability_check
-      loop: "{{ range(1, xray_stability_check_count + 1) | list }}"
-      loop_control:
-        label: "attempt {{ item }}"
-      changed_when: false
-      failed_when:
-        - xray_stability_check.rc != 0
-        - xray_stability_check.stdout is not defined or (xray_stability_check.stdout | trim) == ''
-        - (xray_stability_check.stdout | trim | lower) != 'running'
-  rescue:
-    - name: Gather Xray container status
-      ansible.builtin.command: docker inspect -f '{{ '{{' }} .State.Status {{ '}}' }}' {{ xray_container_name }}
-      register: xray_container_status
-      failed_when: false
-      changed_when: false
 
-    - name: Gather Xray container health status
-      ansible.builtin.command: docker inspect -f '{{ '{{' }} .State.Health.Status {{ '}}' }}' {{ xray_container_name }}
-      register: xray_container_health
-      failed_when: false
-      changed_when: false
+- name: Check Xray container status
+  ansible.builtin.command: docker inspect -f '{{ '{{' }} .State.Status {{ '}}' }}' {{ xray_container_name }}
+  register: xray_status
+  changed_when: false
+  failed_when: false
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
 
-    - name: Gather Xray container restart count
-      ansible.builtin.command: docker inspect -f '{{ '{{' }} .State.RestartCount {{ '}}' }}' {{ xray_container_name }}
-      register: xray_container_restart_count
-      failed_when: false
-      changed_when: false
+- name: Capture Xray container logs when not running
+  ansible.builtin.command: docker logs --tail {{ xray_failure_log_lines }} {{ xray_container_name }}
+  register: xray_start_logs
+  failed_when: false
+  changed_when: false
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_status is defined
+    - xray_status.stdout is not defined or (xray_status.stdout | trim | lower) != 'running'
 
-    - name: Gather recent Xray container logs
-      ansible.builtin.command: docker logs --tail {{ xray_failure_log_lines }} {{ xray_container_name }}
-      register: xray_container_logs
-      failed_when: false
-      changed_when: false
+- name: Display Xray container logs on failure
+  ansible.builtin.debug:
+    msg: |-
+      Recent Xray container logs (last {{ xray_failure_log_lines }} lines):
+      {{ (xray_start_logs.stdout_lines | default([xray_start_logs.stdout | default('No logs available', true)])) | join('\n') }}
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_start_logs is defined
+    - xray_status is defined
+    - xray_status.stdout is not defined or (xray_status.stdout | trim | lower) != 'running'
 
-    - name: Display Xray container status details
-      ansible.builtin.debug:
-        msg:
-          - "Xray container status: {{ (xray_container_status.stdout | default(xray_container_status.stderr | default('unknown', true), true)) | trim }}"
-          - "Xray container health status: {{ (xray_container_health.stdout | default(xray_container_health.stderr | default('unavailable', true), true)) | trim }}"
-          - "Xray container restart count: {{ (xray_container_restart_count.stdout | default(xray_container_restart_count.stderr | default('unknown', true), true)) | trim }}"
-
-    - name: Display Xray container logs
-      ansible.builtin.debug:
-        msg: |-
-          Recent Xray container logs (last {{ xray_failure_log_lines }} lines):
-          {{ (xray_container_logs.stdout_lines | default([xray_container_logs.stdout | default('No logs available', true)])) | join('\n') }}
-
-    - name: Display Xray container log errors
-      ansible.builtin.debug:
-        msg: |-
-          Recent Xray container log errors:
-          {{ (xray_container_logs.stderr_lines | default([xray_container_logs.stderr | default('', true)])) | reject('equalto', '') | list | join('\n') }}
-      when: (xray_container_logs.stderr is defined and (xray_container_logs.stderr | length > 0)) or (xray_container_logs.stderr_lines is defined and (xray_container_logs.stderr_lines | length > 0))
-
-    - name: Fail because the Xray container is not running
-      ansible.builtin.fail:
-        msg: >-
-          Xray container failed to reach the running state after {{ xray_stability_check_count }} attempts. Review the status and logs above for more details.
+- name: Fail because the Xray container is not running
+  ansible.builtin.fail:
+    msg: Xray container failed to reach the running state after deployment. Review the logs above for details.
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_status is defined
+    - xray_status.stdout is not defined or (xray_status.stdout | trim | lower) != 'running'
