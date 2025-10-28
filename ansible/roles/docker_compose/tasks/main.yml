@@ -34,6 +34,30 @@
       (compose_down.stdout | default('') | trim | length) > 0 or
       (compose_down.stderr | default('') | trim | length) > 0
     )
+  failed_when: >-
+    compose_down.rc != 0 and
+    ('yaml: line' not in (compose_down.stderr | default('')))
+
+- name: Remove invalid docker compose definition when parsing fails
+  ansible.builtin.file:
+    path: "{{ compose_project_directory }}/docker-compose.yml"
+    state: absent
+  when:
+    - compose_down is defined
+    - compose_down.rc != 0
+    - compose_down.stderr is defined
+    - "'yaml: line' in compose_down.stderr"
+
+- name: Warn about docker compose project stop failure caused by invalid definition
+  ansible.builtin.debug:
+    msg: >-
+      Skipping docker compose down because the existing docker-compose.yml file could not be parsed.
+      It will be replaced by the freshly rendered template.
+  when:
+    - compose_down is defined
+    - compose_down.rc != 0
+    - compose_down.stderr is defined
+    - "'yaml: line' in compose_down.stderr"
 
 - name: Render Docker Compose file
   ansible.builtin.template:
