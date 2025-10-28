@@ -38,9 +38,7 @@ Pass the following variables via `--extra-vars` or inventory:
 | `xray_config_dir` | `{{ project_root }}/xray` | Directory where `config.json` is rendered. |
 | `xray_image` | `ghcr.io/xtls/xray-core:25.10.15` | Docker image used for the Xray service. |
 | `xray_container_user` | `0:0` | UID:GID that the Xray container runs as. Set to an empty string to use the image default. |
-| `xray_container_name` | `xray` | Container name used for stability checks and manual troubleshooting. |
-| `xray_stability_check_count` | `3` | Number of post-deployment stability samples collected by the playbook. |
-| `xray_stability_check_delay` | `30` | Seconds to wait before each automatic stability sample. |
+| `xray_container_name` | `xray` | Container name used for post-deployment validation and manual troubleshooting. |
 | `xray_container_certificate_path` | `/etc/ssl/live/{{ xray_domain }}/fullchain.pem` | Certificate path inside the container referenced by Xray config. |
 | `xray_container_private_key_path` | `/etc/ssl/live/{{ xray_domain }}/privkey.pem` | Private key path inside the container referenced by Xray config. |
 | `xray_alpn` | `["h2", "http/1.1"]` | ALPN values advertised to TLS clients. |
@@ -98,10 +96,10 @@ Adjust the inline commands to fit your provisioning flow (for example, install A
 Manual deployments can be triggered with the [`Deploy service`](../.github/workflows/deploy.yml) workflow. It validates that the requested GitHub Environment exists, checks for the required secrets (`HOST_SSH_PRIVATE_KEY`, `EMAIL`, `UUID`) and environment variables (`REMOTE_SERVER_IP_ADDRESS`, `REMOTE_SERVER_USER`, `TARGET_DOMAIN_NAME`, optional `XRAY_INBOUND_PORT`), then dynamically builds an inventory file before running the same playbook via SSH. Successful runs print ready-to-import client connection URIs for popular applications.
 
 ## Continuous Integration
-The [`CI`](../.github/workflows/ci.yml) workflow installs Ansible and runs `ansible-playbook --syntax-check` for every push, pull request, or manual dispatch. Use it as a guardrail before promoting infrastructure changes.
+The [`CI`](../.github/workflows/ci.yml) workflow installs Ansible, runs `ansible-playbook --syntax-check`, and after those checks succeed triggers the reusable deployment workflow against the `flatwhite` environment. This keeps the deployment verification gated on the faster validation steps while ensuring the end-to-end playbook still functions.
 
 ## Verification Steps
-The playbook now samples the Docker status of the Xray container three times at 30-second intervals immediately after startup. If any sample reports a restarting state, the run fails to highlight an unstable deployment.
+Immediately before starting the bundled Xray service, the playbook stops and removes any running containers that either expose port 443 or use an image containing the `xray` keyword. After bringing the service up it waits 30 seconds, verifies the container status, and prints the latest logs if the container is not running.
 
 1. Verify containers are running: `docker compose -f /opt/xray/compose/docker-compose.yml ps`.
 2. Test TLS certificate: `openssl s_client -connect example.com:443 -servername example.com`.

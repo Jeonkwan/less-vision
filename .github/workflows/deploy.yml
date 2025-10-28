@@ -9,6 +9,11 @@ on:
         type: choice
         options:
           - flatwhite
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
 
 jobs:
   validate-environment:
@@ -20,7 +25,7 @@ jobs:
       - name: Ensure environment exists
         id: validate
         env:
-          REQUESTED_ENVIRONMENT: ${{ github.event.inputs.environment }}
+          REQUESTED_ENVIRONMENT: ${{ inputs.environment || github.event.inputs.environment }}
           GITHUB_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: |
