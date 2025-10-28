@@ -5,7 +5,7 @@ services:
     container_name: xray
     restart: unless-stopped
     volumes:
-      - "{{ xray_config_dir }}:/etc/xray:ro"
+      - "{{ xray_config_dir }}:/usr/local/etc/xray:ro"
       - "{{ certificates_dir }}:/etc/ssl:ro"
     ports:
       - "{{ xray_inbound_port }}:{{ xray_service_port }}"

@@ -6,5 +6,5 @@ xray_config_dir: "{{ project_root }}/xray"
 xray_domain: ""
 xray_inbound_port: 443
 xray_service_port: "{{ xray_inbound_port }}"
-xray_image: "teddysun/xray:latest"
+xray_image: "ghcr.io/xtls/xray-core:25.10.15"
 docker_compose_up: true
