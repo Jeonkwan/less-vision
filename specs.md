@@ -35,7 +35,7 @@ This document tracks the evolving specification for the automated deployment of 
 - Check mode skips the potentially destructive certificate issuance step while still reporting when issuance would have occurred.
 
 ## Docker Compose Considerations
-- Uses `teddysun/xray:latest` by default, relying on the image entrypoint to read `/etc/xray/config.json`.
+- Uses `ghcr.io/xtls/xray-core:25.10.15` by default, mounting the rendered configuration at `/usr/local/etc/xray` for the image's `-confdir` startup mode.
 - Volumes mount host config and certificate directories read-only.
 - Restart handler restarts the container when templates change, and `docker_compose_up` can disable runtime actions during dry runs.
 

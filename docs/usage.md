@@ -36,7 +36,7 @@ Pass the following variables via `--extra-vars` or inventory:
 | `xray_log_level` | `warning` | Log level for Xray. |
 | `compose_project_directory` | `{{ project_root }}/compose` | Directory containing rendered Docker Compose assets. |
 | `xray_config_dir` | `{{ project_root }}/xray` | Directory where `config.json` is rendered. |
-| `xray_image` | `teddysun/xray:latest` | Docker image used for the Xray service. |
+| `xray_image` | `ghcr.io/xtls/xray-core:25.10.15` | Docker image used for the Xray service. |
 | `xray_container_certificate_path` | `/etc/ssl/live/{{ xray_domain }}/fullchain.pem` | Certificate path inside the container referenced by Xray config. |
 | `xray_container_private_key_path` | `/etc/ssl/live/{{ xray_domain }}/privkey.pem` | Private key path inside the container referenced by Xray config. |
 | `xray_alpn` | `["h2", "http/1.1"]` | ALPN values advertised to TLS clients. |
@@ -99,7 +99,7 @@ The [`CI`](../.github/workflows/ci.yml) workflow installs Ansible and runs `ansi
 ## Verification Steps
 1. Verify containers are running: `docker compose -f /opt/xray/compose/docker-compose.yml ps`.
 2. Test TLS certificate: `openssl s_client -connect example.com:443 -servername example.com`.
-3. Validate Xray config inside container: `docker compose -f /opt/xray/compose/docker-compose.yml exec xray xray -test -config /etc/xray/config.json`.
+3. Validate Xray config inside container: `docker compose -f /opt/xray/compose/docker-compose.yml exec xray xray -test -confdir /usr/local/etc/xray`.
 
 ## Troubleshooting
 - **Port 80 in use**: Stop any service occupying port 80 before requesting certificates.
