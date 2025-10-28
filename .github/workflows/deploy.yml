@@ -124,7 +124,7 @@ jobs:
         env:
           ANSIBLE_CONFIG: ansible.cfg
         run: |
-          ansible-playbook ansible/playbooks/site.yml \
+          ansible-playbook -vv ansible/playbooks/site.yml \
             -i ansible/inventory/remote.ini \
             --extra-vars "xray_domain=${{ vars.TARGET_DOMAIN_NAME }} xray_email=${{ secrets.EMAIL }} xray_uuid=${{ secrets.UUID }}"
 

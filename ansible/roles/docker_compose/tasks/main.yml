@@ -99,6 +99,25 @@
     - not ansible_check_mode
     - xray_conflicting_containers is defined
 
+- name: Display conflicting Xray containers
+  ansible.builtin.debug:
+    msg: >-
+      Found existing Xray-related containers that will be stopped: {{ xray_conflicting_container_ids | join(', ') }}
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_conflicting_container_ids is defined
+    - xray_conflicting_container_ids | length > 0
+
+- name: Report when no conflicting Xray containers are running
+  ansible.builtin.debug:
+    msg: No running containers matching the Xray image or port 443 were found.
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+    - xray_conflicting_container_ids is defined
+    - xray_conflicting_container_ids | length == 0
+
 - name: Stop conflicting Xray containers
   ansible.builtin.command: docker stop {{ item }}
   loop: "{{ xray_conflicting_container_ids | default([]) }}"
