@@ -63,7 +63,7 @@
 - block:
     - name: Wait for Xray container to stabilize
       ansible.builtin.pause:
-        seconds: {{ xray_deploy_wait_seconds }}
+        seconds: "{{ xray_deploy_wait_seconds }}"
 
     - name: Inspect Xray container state
       ansible.builtin.command:
@@ -78,7 +78,7 @@
 
     - name: Cache Xray container inspect metadata
       ansible.builtin.set_fact:
-        xray_deploy_container_rc: {{ xray_deploy_container_state.rc | default(1) }}
+        xray_deploy_container_rc: "{{ xray_deploy_container_state.rc | default(1) }}"
         xray_deploy_container_stderr: "{{ xray_deploy_container_state.stderr | default('', true) }}"
 
     - name: Derive Xray container details from inspect output
@@ -86,7 +86,7 @@
         xray_deploy_container_details: >-
           {{
             xray_deploy_container_state.stdout | from_json
-            if xray_deploy_container_rc == 0 and (xray_deploy_container_state.stdout | default('') | trim | length > 0)
+            if (xray_deploy_container_rc | int) == 0 and (xray_deploy_container_state.stdout | default('') | trim | length > 0)
             else {}
           }}
 
@@ -107,7 +107,7 @@
 
     - name: Determine whether Xray deployment needs recovery
       ansible.builtin.set_fact:
-        xray_deploy_needs_recovery: {{ ((xray_deploy_container_rc | int) != 0 or xray_deploy_container_status != 'running') | bool }}
+        xray_deploy_needs_recovery: "{{ ((xray_deploy_container_rc | int) != 0 or xray_deploy_container_status != 'running') | bool }}"
 
     - name: Show Xray container inspect diagnostics (verbose)
       ansible.builtin.debug:
@@ -145,7 +145,7 @@
 
         - name: Wait for Xray container to stabilize after recovery
           ansible.builtin.pause:
-            seconds: {{ xray_deploy_recovery_wait_seconds }}
+            seconds: "{{ xray_deploy_recovery_wait_seconds }}"
 
         - name: Reinspect Xray container state after recovery
           ansible.builtin.command:
@@ -160,7 +160,7 @@
 
         - name: Cache Xray container inspect metadata after recovery
           ansible.builtin.set_fact:
-            xray_deploy_container_rc: {{ xray_deploy_container_state.rc | default(1) }}
+            xray_deploy_container_rc: "{{ xray_deploy_container_state.rc | default(1) }}"
             xray_deploy_container_stderr: "{{ xray_deploy_container_state.stderr | default('', true) }}"
 
         - name: Refresh Xray container details after recovery
@@ -168,7 +168,7 @@
             xray_deploy_container_details: >-
               {{
                 xray_deploy_container_state.stdout | from_json
-                if xray_deploy_container_rc == 0 and (xray_deploy_container_state.stdout | default('') | trim | length > 0)
+                if (xray_deploy_container_rc | int) == 0 and (xray_deploy_container_state.stdout | default('') | trim | length > 0)
                 else {}
               }}
 
@@ -189,7 +189,7 @@
 
         - name: Update recovery flag after compose remediation
           ansible.builtin.set_fact:
-            xray_deploy_needs_recovery: {{ ((xray_deploy_container_rc | int) != 0 or xray_deploy_container_status != 'running') | bool }}
+            xray_deploy_needs_recovery: "{{ ((xray_deploy_container_rc | int) != 0 or xray_deploy_container_status != 'running') | bool }}"
 
         - name: Show Xray container inspect diagnostics after recovery (verbose)
           ansible.builtin.debug:
@@ -222,7 +222,7 @@
     - name: Ensure Xray container is running
       ansible.builtin.assert:
         that:
-          - xray_deploy_container_rc == 0
+          - (xray_deploy_container_rc | int) == 0
           - xray_deploy_container_status == 'running'
         fail_msg: >-
           Xray container failed to reach the running state.
