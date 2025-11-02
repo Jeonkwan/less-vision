@@ -5,6 +5,7 @@
   vars:
     project_root: "/opt/xray"
   roles:
+    - docker_prereqs
     - certificates
     - xray_config
     - docker_compose
