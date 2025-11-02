@@ -4,6 +4,7 @@
     path: /etc/apt/keyrings
     state: directory
     mode: "0755"
+  when: not ansible_check_mode
 
 - name: Ensure Docker GPG key is installed
   ansible.builtin.shell: |
@@ -12,6 +13,7 @@
     chmod 0644 /etc/apt/keyrings/docker.gpg
   args:
     creates: /etc/apt/keyrings/docker.gpg
+  when: not ansible_check_mode
 
 - name: Determine Ubuntu codename for Docker repository
   ansible.builtin.command: lsb_release -sc
@@ -30,11 +32,14 @@
       deb [arch={{ docker_prereqs_arch.stdout }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ docker_prereqs_codename.stdout }} stable
     mode: "0644"
   register: docker_prereqs_repo
+  when: not ansible_check_mode
 
 - name: Update apt cache for Docker repository
   ansible.builtin.command: apt-get -y update
   changed_when: false
-  when: docker_prereqs_repo.changed
+  when:
+    - not ansible_check_mode
+    - docker_prereqs_repo.changed
 
 - name: Install Docker engine and Compose dependencies
   ansible.builtin.shell: |
@@ -48,6 +53,7 @@
       docker-compose-plugin
   args:
     creates: /usr/bin/docker
+  when: not ansible_check_mode
 
 - name: Ensure Docker group contains deployment user
   ansible.builtin.user:
@@ -55,10 +61,13 @@
     groups:
       - docker
     append: true
-  when: docker_prereqs_user | length > 0
+  when:
+    - not ansible_check_mode
+    - docker_prereqs_user | length > 0
 
 - name: Ensure Docker service is enabled and running
   ansible.builtin.service:
     name: docker
     state: started
     enabled: true
+  when: not ansible_check_mode

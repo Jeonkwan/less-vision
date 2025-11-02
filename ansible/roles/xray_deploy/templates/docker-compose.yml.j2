@@ -1,0 +1,27 @@
+{#- #jinja2: trim_blocks: True, lstrip_blocks: True -#}
+version: "3.9"
+services:
+  xray:
+    image: "{{ xray_image }}"
+    container_name: "{{ xray_container_name }}"
+    restart: "{{ xray_restart_policy }}"
+{% if xray_container_user %}
+    user: "{{ xray_container_user }}"
+{% endif %}
+    volumes:
+      - "{{ xray_config_dir }}:{{ xray_container_confdir }}:ro"
+      - "{{ certificates_dir }}:/etc/ssl:ro"
+    ports:
+      - "{{ xray_host_port }}:{{ xray_container_port }}"
+{% if xray_compose_environment %}
+    environment:
+{% for key, value in xray_compose_environment.items() %}
+      {{ key }}: "{{ value }}"
+{% endfor %}
+{% endif %}
+{% if xray_compose_networks %}
+    networks:
+{% for network in xray_compose_networks %}
+      - "{{ network }}"
+{% endfor %}
+{% endif %}

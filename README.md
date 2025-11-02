@@ -3,7 +3,7 @@
 Automated deployment toolkit for running [Xray](https://github.com/XTLS/Xray-core) with VLESS `flow=xtls-rprx-vision` behind TLS. The project is designed to be triggered from Terraform and relies on an idiomatic Ansible playbook to prepare certificates, render configuration, and launch Docker Compose.
 
 ## Features
-- **Idempotent Ansible Playbook** – Roles manage certificates, Xray configuration, and Docker Compose assets on any host.
+- **Idempotent Ansible Playbook** – Roles install Docker when missing, reconcile certificates, remove conflicting containers, and apply a healthy Xray deployment.
 - **Certificate Safety** – Existing Let’s Encrypt certificates are re-used when valid, with an option to force regeneration.
 - **Infrastructure Ready** – Terraform example shows how to execute the playbook during VM provisioning.
 - **Continuous Automation** – GitHub Actions workflows handle playbook syntax checks and provide a guarded, environment-aware deployment trigger.
@@ -20,8 +20,9 @@ Automated deployment toolkit for running [Xray](https://github.com/XTLS/Xray-cor
 │   │   └── site.yml
 │   └── roles/
 │       ├── certificates/
-│       ├── docker_compose/
-│       └── xray_config/
+│       ├── docker_prereqs/
+│       ├── xray_cleanup/
+│       └── xray_deploy/
 ├── ansible.cfg
 ├── docs/
 │   └── usage.md

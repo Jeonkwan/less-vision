@@ -1,0 +1,4 @@
+---
+xray_deploy_wait_seconds: 60
+xray_deploy_recovery_wait_seconds: 30
+xray_deploy_log_tail_lines: 300

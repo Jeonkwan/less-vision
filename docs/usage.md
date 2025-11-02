@@ -4,7 +4,7 @@ This guide explains how to run the Ansible playbook that configures and starts X
 
 ## Prerequisites
 - A Linux host with root privileges (Ansible `become: true` is used).
-- Docker Engine with the Compose plugin (`docker compose` command available).
+- Outbound internet access so the playbook can install Docker Engine and pull required container images.
 - Open TCP ports 80 (temporary for certificate issuance) and the public TLS port you choose (default 443).
 - DNS A record pointing your domain to the host.
 - Ansible 2.14+ on the control machine triggering the playbook.
@@ -43,6 +43,15 @@ Pass the following variables via `--extra-vars` or inventory:
 | `xray_container_private_key_path` | `/etc/ssl/live/{{ xray_domain }}/privkey.pem` | Private key path inside the container referenced by Xray config. |
 | `xray_alpn` | `["h2", "http/1.1"]` | ALPN values advertised to TLS clients. |
 | `docker_compose_up` | `true` | Disable if you only want to render files without starting containers. |
+| `xray_restart_policy` | `unless-stopped` | Compose restart policy applied to the Xray service. |
+| `xray_host_port` | `{{ xray_inbound_port }}` | Host-side port published by Docker (defaults to the inbound port). |
+| `xray_container_port` | `{{ xray_service_port }}` | Container-side port exposed by Docker (defaults to the service port). |
+| `xray_compose_environment` | `{}` | Optional environment variables injected into the Xray container. |
+| `xray_compose_networks` | `[]` | Extra Docker networks to attach to the Xray container. |
+| `xray_deploy_wait_seconds` | `60` | Initial delay after applying Compose before health checks run. |
+| `xray_deploy_recovery_wait_seconds` | `30` | Delay between recovery attempts and re-checking container status. |
+| `xray_deploy_log_tail_lines` | `300` | Number of log lines printed when the container fails to stabilise. |
+| `xray_common_docker_user` | `ubuntu` | User added to the `docker` group when Docker is installed by the playbook. |
 
 ## Running the Playbook
 Create or reuse an inventory file such as `ansible/inventory/hosts.ini`:
@@ -99,7 +108,7 @@ Manual deployments can be triggered with the [`Deploy service`](../.github/workf
 The [`CI`](../.github/workflows/ci.yml) workflow installs Ansible, runs `ansible-playbook --syntax-check`, and after those checks succeed triggers the reusable deployment workflow against the `flatwhite` environment. This keeps the deployment verification gated on the faster validation steps while ensuring the end-to-end playbook still functions.
 
 ## Verification Steps
-Immediately before starting the bundled Xray service, the playbook stops and removes any running containers that either expose port 443 or use an image containing the `xray` keyword. After bringing the service up it waits 30 seconds, verifies the container status, and prints the latest logs if the container is not running.
+Immediately before starting the bundled Xray service, the playbook stops and removes any running containers that either expose port 443 or use an image containing the `xray` keyword. After bringing the service up it waits `xray_deploy_wait_seconds` (60 seconds by default), verifies the container status, and prints the latest logs if the container is not running. When the container is missing or stopped the role automatically re-runs `docker compose up -d --remove-orphans` once and re-checks the health before failing.
 
 1. Verify containers are running: `docker compose -f /opt/xray/compose/docker-compose.yml ps`.
 2. Test TLS certificate: `openssl s_client -connect example.com:443 -servername example.com`.

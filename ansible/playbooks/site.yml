@@ -7,5 +7,5 @@
   roles:
     - docker_prereqs
     - certificates
-    - xray_config
-    - docker_compose
+    - xray_cleanup
+    - xray_deploy

@@ -1,0 +1,53 @@
+{
+  "log": {
+    "loglevel": "{{ xray_log_level }}"
+  },
+  "inbounds": [
+    {
+      "port": {{ xray_inbound_port }},
+      "listen": "0.0.0.0",
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "{{ xray_uuid }}",
+            "flow": "{{ xray_flow }}",
+            "email": "{{ xray_client_email }}"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+          "alpn": {{ xray_alpn | to_json }},
+          "certificates": [
+            {
+              "certificateFile": "{{ xray_container_certificate_path }}",
+              "keyFile": "{{ xray_container_private_key_path }}"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom"
+    },
+    {
+      "protocol": "blackhole",
+      "tag": "blocked"
+    }
+  ],
+  "routing": {
+    "rules": [
+      {
+        "type": "field",
+        "outboundTag": "blocked",
+        "domain": ["geosite:category-ads-all"]
+      }
+    ]
+  }
+}
