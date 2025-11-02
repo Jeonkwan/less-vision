@@ -1,0 +1,20 @@
+---
+- name: Apply docker compose deployment
+  ansible.builtin.command:
+    cmd: docker compose -f {{ xray_compose_file }} up -d --remove-orphans
+    chdir: "{{ compose_project_directory }}"
+  register: xray_deploy_compose_up
+  changed_when: >-
+    ('Creating' in xray_deploy_compose_up.stdout) or
+    ('Creating' in xray_deploy_compose_up.stderr) or
+    ('Recreating' in xray_deploy_compose_up.stdout) or
+    ('Recreating' in xray_deploy_compose_up.stderr) or
+    ('Starting' in xray_deploy_compose_up.stdout) or
+    ('Starting' in xray_deploy_compose_up.stderr) or
+    ('Pulling' in xray_deploy_compose_up.stdout) or
+    ('Pulling' in xray_deploy_compose_up.stderr) or
+    ('Downloading' in xray_deploy_compose_up.stdout) or
+    ('Downloading' in xray_deploy_compose_up.stderr)
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode

@@ -1,0 +1,286 @@
+---
+- name: Ensure Xray UUID is provided
+  ansible.builtin.assert:
+    that:
+      - xray_uuid is defined
+      - xray_uuid | length > 0
+    fail_msg: "xray_uuid is required for Xray client configuration."
+
+- name: Ensure certificate paths are available
+  ansible.builtin.assert:
+    that:
+      - xray_certificate_path | length > 0
+      - xray_private_key_path | length > 0
+      - xray_container_certificate_path | length > 0
+      - xray_container_private_key_path | length > 0
+    fail_msg: "Certificate and key paths must be known before rendering Xray config."
+
+- name: Ensure Xray project root exists
+  ansible.builtin.file:
+    path: "{{ project_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure Xray configuration directory exists
+  ansible.builtin.file:
+    path: "{{ xray_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure docker compose directory exists
+  ansible.builtin.file:
+    path: "{{ compose_project_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Template Xray Vision configuration
+  ansible.builtin.template:
+    src: config.json.j2
+    dest: "{{ xray_config_dir }}/{{ xray_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply docker compose deployment
+
+- name: Template docker compose definition
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ xray_compose_file }}"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Apply docker compose deployment
+
+- name: Apply configuration immediately when changes occur
+  ansible.builtin.meta: flush_handlers
+
+- block:
+    - name: Wait for Xray container to stabilize
+      ansible.builtin.pause:
+        seconds: {{ xray_deploy_wait_seconds }}
+
+    - name: Inspect Xray container state
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - "--format={{ '{{json .State}}' }}"
+          - "{{ xray_container_name }}"
+      register: xray_deploy_container_state
+      changed_when: false
+      failed_when: false
+
+    - name: Cache Xray container inspect metadata
+      ansible.builtin.set_fact:
+        xray_deploy_container_rc: {{ xray_deploy_container_state.rc | default(1) }}
+        xray_deploy_container_stderr: "{{ xray_deploy_container_state.stderr | default('', true) }}"
+
+    - name: Derive Xray container details from inspect output
+      ansible.builtin.set_fact:
+        xray_deploy_container_details: >-
+          {{
+            xray_deploy_container_state.stdout | from_json
+            if xray_deploy_container_rc == 0 and (xray_deploy_container_state.stdout | default('') | trim | length > 0)
+            else {}
+          }}
+
+    - name: Derive Xray container status and health
+      ansible.builtin.set_fact:
+        xray_deploy_container_status: >-
+          {{
+            xray_deploy_container_details.Status | default('unknown')
+            if xray_deploy_container_details is mapping
+            else 'unknown'
+          }}
+        xray_deploy_container_health: >-
+          {{
+            xray_deploy_container_details.get('Health', {}).get('Status', 'unknown')
+            if xray_deploy_container_details is mapping
+            else 'unknown'
+          }}
+
+    - name: Determine whether Xray deployment needs recovery
+      ansible.builtin.set_fact:
+        xray_deploy_needs_recovery: {{ ((xray_deploy_container_rc | int) != 0 or xray_deploy_container_status != 'running') | bool }}
+
+    - name: Show Xray container inspect diagnostics (verbose)
+      ansible.builtin.debug:
+        msg:
+          - "Inspect rc={{ xray_deploy_container_rc }}, status={{ xray_deploy_container_status }}, health={{ xray_deploy_container_health }}"
+          - "Inspect stderr={{ xray_deploy_container_stderr | trim }}"
+        verbosity: 1
+
+    - name: Attempt to recover Xray deployment when container is missing or stopped
+      when: xray_deploy_needs_recovery | bool
+      block:
+        - name: Reapply docker compose deployment when container is missing or stopped
+          ansible.builtin.command:
+            cmd: docker compose -f {{ xray_compose_file }} up -d --remove-orphans
+            chdir: "{{ compose_project_directory }}"
+          register: xray_deploy_compose_recover
+          changed_when: >-
+            ('Creating' in xray_deploy_compose_recover.stdout) or
+            ('Creating' in xray_deploy_compose_recover.stderr) or
+            ('Recreating' in xray_deploy_compose_recover.stdout) or
+            ('Recreating' in xray_deploy_compose_recover.stderr) or
+            ('Starting' in xray_deploy_compose_recover.stdout) or
+            ('Starting' in xray_deploy_compose_recover.stderr) or
+            ('Pulling' in xray_deploy_compose_recover.stdout) or
+            ('Pulling' in xray_deploy_compose_recover.stderr) or
+            ('Downloading' in xray_deploy_compose_recover.stdout) or
+            ('Downloading' in xray_deploy_compose_recover.stderr)
+
+        - name: Show docker compose recovery output (verbose)
+          ansible.builtin.debug:
+            msg:
+              - "docker compose up stdout: {{ xray_deploy_compose_recover.stdout | default('', true) | trim }}"
+              - "docker compose up stderr: {{ xray_deploy_compose_recover.stderr | default('', true) | trim }}"
+            verbosity: 1
+
+        - name: Wait for Xray container to stabilize after recovery
+          ansible.builtin.pause:
+            seconds: {{ xray_deploy_recovery_wait_seconds }}
+
+        - name: Reinspect Xray container state after recovery
+          ansible.builtin.command:
+            argv:
+              - docker
+              - inspect
+              - "--format={{ '{{json .State}}' }}"
+              - "{{ xray_container_name }}"
+          register: xray_deploy_container_state
+          changed_when: false
+          failed_when: false
+
+        - name: Cache Xray container inspect metadata after recovery
+          ansible.builtin.set_fact:
+            xray_deploy_container_rc: {{ xray_deploy_container_state.rc | default(1) }}
+            xray_deploy_container_stderr: "{{ xray_deploy_container_state.stderr | default('', true) }}"
+
+        - name: Refresh Xray container details after recovery
+          ansible.builtin.set_fact:
+            xray_deploy_container_details: >-
+              {{
+                xray_deploy_container_state.stdout | from_json
+                if xray_deploy_container_rc == 0 and (xray_deploy_container_state.stdout | default('') | trim | length > 0)
+                else {}
+              }}
+
+        - name: Refresh Xray container status and health after recovery
+          ansible.builtin.set_fact:
+            xray_deploy_container_status: >-
+              {{
+                xray_deploy_container_details.Status | default('unknown')
+                if xray_deploy_container_details is mapping
+                else 'unknown'
+              }}
+            xray_deploy_container_health: >-
+              {{
+                xray_deploy_container_details.get('Health', {}).get('Status', 'unknown')
+                if xray_deploy_container_details is mapping
+                else 'unknown'
+              }}
+
+        - name: Update recovery flag after compose remediation
+          ansible.builtin.set_fact:
+            xray_deploy_needs_recovery: {{ ((xray_deploy_container_rc | int) != 0 or xray_deploy_container_status != 'running') | bool }}
+
+        - name: Show Xray container inspect diagnostics after recovery (verbose)
+          ansible.builtin.debug:
+            msg:
+              - "Post-recovery inspect rc={{ xray_deploy_container_rc }}, status={{ xray_deploy_container_status }}, health={{ xray_deploy_container_health }}"
+              - "Post-recovery inspect stderr={{ xray_deploy_container_stderr | trim }}"
+            verbosity: 1
+
+    - name: Capture recent Xray container logs on failure
+      ansible.builtin.command:
+        argv:
+          - docker
+          - logs
+          - "--tail"
+          - "{{ xray_deploy_log_tail_lines }}"
+          - "{{ xray_container_name }}"
+      register: xray_deploy_container_logs
+      changed_when: false
+      failed_when: false
+      when: xray_deploy_needs_recovery | bool
+
+    - name: Show recent Xray container logs when status is unexpected
+      ansible.builtin.debug:
+        msg:
+          - "Xray container inspect rc={{ xray_deploy_container_rc }}, status={{ xray_deploy_container_status }}, health={{ xray_deploy_container_health }}"
+          - "Recent logs (last {{ xray_deploy_log_tail_lines }} lines):"
+          - "{{ ((xray_deploy_container_logs | default({'stdout': ''}, true)).stdout | default('', true) | trim) or '[no logs captured]' }}"
+      when: xray_deploy_needs_recovery | bool
+
+    - name: Ensure Xray container is running
+      ansible.builtin.assert:
+        that:
+          - xray_deploy_container_rc == 0
+          - xray_deploy_container_status == 'running'
+        fail_msg: >-
+          Xray container failed to reach the running state.
+          Inspect returned rc={{ xray_deploy_container_rc }}, status={{ xray_deploy_container_status }},
+          health={{ xray_deploy_container_health }}, stderr="{{ xray_deploy_container_stderr | trim }}".
+          Recent logs (last {{ xray_deploy_log_tail_lines }} lines):
+          {{ ((xray_deploy_container_logs | default({'stdout': ''}, true)).stdout | default('', true) | trim) or '[no logs captured]' }}
+        success_msg: >-
+          Xray container is running (status={{ xray_deploy_container_status }}, health={{ xray_deploy_container_health }}).
+  when:
+    - docker_compose_up | bool
+    - not ansible_check_mode
+
+- name: Stop Xray services
+  ansible.builtin.command:
+    cmd: docker compose -f {{ xray_compose_file }} down --remove-orphans
+    chdir: "{{ compose_project_directory }}"
+  register: xray_deploy_compose_down
+  changed_when: >-
+    ('Removing' in xray_deploy_compose_down.stdout) or
+    ('Removing' in xray_deploy_compose_down.stderr) or
+    ('Stopping' in xray_deploy_compose_down.stdout) or
+    ('Stopping' in xray_deploy_compose_down.stderr)
+  tags:
+    - never
+    - xray_down
+  when: not ansible_check_mode
+
+- name: Reload Xray services
+  ansible.builtin.command:
+    cmd: docker compose -f {{ xray_compose_file }} up -d
+    chdir: "{{ compose_project_directory }}"
+  register: xray_deploy_compose_reload
+  changed_when: >-
+    ('Creating' in xray_deploy_compose_reload.stdout) or
+    ('Creating' in xray_deploy_compose_reload.stderr) or
+    ('Recreating' in xray_deploy_compose_reload.stdout) or
+    ('Recreating' in xray_deploy_compose_reload.stderr) or
+    ('Starting' in xray_deploy_compose_reload.stdout) or
+    ('Starting' in xray_deploy_compose_reload.stderr)
+  tags:
+    - never
+    - xray_reload
+  when: not ansible_check_mode
+
+- name: Force recreate Xray services
+  ansible.builtin.command:
+    cmd: docker compose -f {{ xray_compose_file }} up -d --force-recreate --remove-orphans
+    chdir: "{{ compose_project_directory }}"
+  register: xray_deploy_compose_recreate
+  changed_when: >-
+    ('Creating' in xray_deploy_compose_recreate.stdout) or
+    ('Creating' in xray_deploy_compose_recreate.stderr) or
+    ('Recreating' in xray_deploy_compose_recreate.stdout) or
+    ('Recreating' in xray_deploy_compose_recreate.stderr) or
+    ('Starting' in xray_deploy_compose_recreate.stdout) or
+    ('Starting' in xray_deploy_compose_recreate.stderr)
+  tags:
+    - never
+    - xray_recreate
+  when: not ansible_check_mode
