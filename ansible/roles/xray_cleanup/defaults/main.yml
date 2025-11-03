@@ -1,0 +1,4 @@
+---
+# Ensure xray_cleanup behaves consistently even when global variables
+# are not automatically loaded (e.g., when invoked via external playbooks).
+docker_compose_up: true
