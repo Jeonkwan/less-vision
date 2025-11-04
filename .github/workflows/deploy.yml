@@ -1,4 +1,7 @@
 name: Deploy service
+run-name: >-
+  Deploy ${{ github.event.inputs.environment || inputs.environment || 'environment' }}
+  to ${{ github.event.inputs.target_domain_name || inputs.target_domain_name || 'domain' }}
 
 on:
   workflow_dispatch:
@@ -6,9 +9,7 @@ on:
       environment:
         description: "Deployment environment"
         required: true
-        type: choice
-        options:
-          - flatwhite
+        type: environment
       target_domain_name:
         description: "Target domain name for the deployment"
         required: true
@@ -152,6 +153,41 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+
+      - name: Update workflow run name
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          DEPLOY_ENVIRONMENT: ${{ needs.validate-environment.outputs.environment }}
+          TARGET_DOMAIN_NAME: ${{ needs.validate-environment.outputs.target_domain_name }}
+          REMOTE_SERVER_IP_ADDRESS: ${{ needs.validate-environment.outputs.remote_server_ip_address }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from datetime import datetime, timedelta, timezone
+
+          tz = timezone(timedelta(hours=8), name="CST")
+          timestamp = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+
+          environment = os.environ.get("DEPLOY_ENVIRONMENT") or "unknown"
+          domain = os.environ.get("TARGET_DOMAIN_NAME") or "unknown"
+          ip_address = os.environ.get("REMOTE_SERVER_IP_ADDRESS") or "unknown"
+
+          run_name = f"Deploy {environment} -> {domain} ({ip_address}) at {timestamp}"
+
+          url = f"https://api.github.com/repos/{os.environ['REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}"
+          data = json.dumps({"name": run_name}).encode()
+
+          request = urllib.request.Request(url, data=data, method="PATCH")
+          request.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
+          request.add_header("Accept", "application/vnd.github+json")
+
+          with urllib.request.urlopen(request) as response:
+            response.read()
+          PY
 
       - name: Install Ansible
         run: |
