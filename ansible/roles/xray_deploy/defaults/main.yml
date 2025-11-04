@@ -1,8 +1,43 @@
+---
+# Defaults for the xray_deploy role. These intentionally mirror the values in
+# ansible/group_vars/all.yml so the role can operate without that file being
+# loaded (for example when running from an ad-hoc inventory).
+
 project_root: "/opt/xray"
 compose_project_directory: "{{ project_root }}/compose"
 xray_config_dir: "{{ project_root }}/xray"
 xray_config_file: "config.json"
 xray_compose_file: "{{ compose_project_directory }}/docker-compose.yml"
+
+certificates_dir: "{{ project_root }}/certificates"
+
+xray_domain: ""
+xray_email: ""
+xray_uuid: ""
+
+xray_certificate_path: "{{ certificates_dir }}/live/{{ xray_domain }}/fullchain.pem"
+xray_private_key_path: "{{ certificates_dir }}/live/{{ xray_domain }}/privkey.pem"
+xray_container_certificate_path: "/etc/ssl/live/{{ xray_domain }}/fullchain.pem"
+xray_container_private_key_path: "/etc/ssl/live/{{ xray_domain }}/privkey.pem"
+
+xray_log_level: "warning"
+xray_inbound_port: 443
+xray_service_port: "{{ xray_inbound_port }}"
+xray_flow: "xtls-rprx-vision"
+xray_client_email: "{{ xray_email | default('client@example.com', true) }}"
+xray_alpn:
+  - h2
+  - http/1.1
+
+xray_image: "ghcr.io/xtls/xray-core:25.10.15"
+xray_container_name: "xray"
+xray_restart_policy: "unless-stopped"
+xray_container_user: "0:0"
+xray_container_confdir: "/usr/local/etc/xray"
+xray_host_port: "{{ xray_inbound_port }}"
+xray_container_port: "{{ xray_service_port }}"
+xray_compose_environment: {}
+xray_compose_networks: []
 
 xray_deploy_wait_seconds: 60
 xray_deploy_recovery_wait_seconds: 30
