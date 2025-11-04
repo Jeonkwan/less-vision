@@ -1,0 +1,15 @@
+---
+- name: Ensure cron timezone is set to China Standard Time for reboot job
+  ansible.builtin.cron:
+    name: CRON_TZ
+    env: true
+    value: Asia/Shanghai
+
+- name: Schedule daily reboot at 04:00 China Standard Time
+  ansible.builtin.cron:
+    name: Daily reboot at 04:00 CST
+    minute: "0"
+    hour: "4"
+    job: "/usr/bin/systemctl reboot"
+    user: root
+    state: present

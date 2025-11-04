@@ -6,6 +6,7 @@
     project_root: "/opt/xray"
   roles:
     - docker_prereqs
+    - system_maintenance
     - certificates
     - xray_cleanup
     - xray_deploy
