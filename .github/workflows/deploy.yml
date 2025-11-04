@@ -9,10 +9,38 @@ on:
         type: choice
         options:
           - flatwhite
+      target_domain_name:
+        description: "Target domain name for the deployment"
+        required: true
+        type: string
+      remote_server_user:
+        description: "SSH user for the remote server"
+        required: true
+        type: string
+      remote_server_ip_address:
+        description: "IP address of the remote server"
+        required: true
+        type: string
+      uuid:
+        description: "Optional XRAY UUID override (defaults to environment secret)"
+        required: false
+        type: string
   workflow_call:
     inputs:
       environment:
         required: true
+        type: string
+      target_domain_name:
+        required: true
+        type: string
+      remote_server_user:
+        required: true
+        type: string
+      remote_server_ip_address:
+        required: true
+        type: string
+      uuid:
+        required: false
         type: string
 
 jobs:
@@ -21,6 +49,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.validate.outputs.environment }}
+      target_domain_name: ${{ steps.collect.outputs.target_domain_name }}
+      remote_server_user: ${{ steps.collect.outputs.remote_server_user }}
+      remote_server_ip_address: ${{ steps.collect.outputs.remote_server_ip_address }}
+      uuid: ${{ steps.collect.outputs.uuid }}
     steps:
       - name: Ensure environment exists
         id: validate
@@ -52,11 +84,66 @@ jobs:
 
           echo "environment=$REQUESTED_ENVIRONMENT" >> "$GITHUB_OUTPUT"
 
+      - name: Collect deployment parameters
+        id: collect
+        env:
+          TARGET_DOMAIN_NAME_INPUT: ${{ inputs.target_domain_name || github.event.inputs.target_domain_name }}
+          REMOTE_SERVER_USER_INPUT: ${{ inputs.remote_server_user || github.event.inputs.remote_server_user }}
+          REMOTE_SERVER_IP_ADDRESS_INPUT: ${{ inputs.remote_server_ip_address || github.event.inputs.remote_server_ip_address }}
+          UUID_INPUT: ${{ inputs.uuid || github.event.inputs.uuid }}
+          SECRET_UUID: ${{ secrets.UUID }}
+        run: |
+          set -euo pipefail
+
+          target_domain_name="${TARGET_DOMAIN_NAME_INPUT:-}"
+          remote_server_user="${REMOTE_SERVER_USER_INPUT:-}"
+          remote_server_ip_address="${REMOTE_SERVER_IP_ADDRESS_INPUT:-}"
+          uuid_input="${UUID_INPUT:-}"
+          secret_uuid="${SECRET_UUID:-}"
+
+          missing=0
+
+          check_required() {
+            if [ -z "$1" ]; then
+              echo "::error::Missing required $2"
+              missing=1
+            fi
+          }
+
+          check_required "$target_domain_name" "input TARGET_DOMAIN_NAME"
+          check_required "$remote_server_user" "input REMOTE_SERVER_USER"
+          check_required "$remote_server_ip_address" "input REMOTE_SERVER_IP_ADDRESS"
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+          if [ -n "$uuid_input" ]; then
+            uuid_value="$uuid_input"
+          elif [ -n "$secret_uuid" ]; then
+            uuid_value="$secret_uuid"
+          else
+            echo "::error::UUID input not provided and environment secret UUID is unavailable."
+            exit 1
+          fi
+
+          {
+            echo "target_domain_name=$target_domain_name"
+            echo "remote_server_user=$remote_server_user"
+            echo "remote_server_ip_address=$remote_server_ip_address"
+            echo "uuid=$uuid_value"
+          } >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Deploy to remote server
     runs-on: ubuntu-latest
     needs: validate-environment
     environment: ${{ needs.validate-environment.outputs.environment }}
+    env:
+      TARGET_DOMAIN_NAME: ${{ needs.validate-environment.outputs.target_domain_name }}
+      REMOTE_SERVER_USER: ${{ needs.validate-environment.outputs.remote_server_user }}
+      REMOTE_SERVER_IP_ADDRESS: ${{ needs.validate-environment.outputs.remote_server_ip_address }}
+      XRAY_UUID: ${{ needs.validate-environment.outputs.uuid }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -75,10 +162,10 @@ jobs:
         env:
           HOST_SSH_PRIVATE_KEY: ${{ secrets.HOST_SSH_PRIVATE_KEY }}
           EMAIL: ${{ secrets.EMAIL }}
-          UUID: ${{ secrets.UUID }}
-          REMOTE_SERVER_IP_ADDRESS: ${{ vars.REMOTE_SERVER_IP_ADDRESS }}
-          REMOTE_SERVER_USER: ${{ vars.REMOTE_SERVER_USER }}
-          TARGET_DOMAIN_NAME: ${{ vars.TARGET_DOMAIN_NAME }}
+          UUID: ${{ needs.validate-environment.outputs.uuid }}
+          REMOTE_SERVER_IP_ADDRESS: ${{ needs.validate-environment.outputs.remote_server_ip_address }}
+          REMOTE_SERVER_USER: ${{ needs.validate-environment.outputs.remote_server_user }}
+          TARGET_DOMAIN_NAME: ${{ needs.validate-environment.outputs.target_domain_name }}
         run: |
           missing=0
           check_required() {
@@ -90,10 +177,10 @@ jobs:
 
           check_required "$HOST_SSH_PRIVATE_KEY" "secret HOST_SSH_PRIVATE_KEY"
           check_required "$EMAIL" "secret EMAIL"
-          check_required "$UUID" "secret UUID"
-          check_required "$REMOTE_SERVER_IP_ADDRESS" "environment variable REMOTE_SERVER_IP_ADDRESS"
-          check_required "$REMOTE_SERVER_USER" "environment variable REMOTE_SERVER_USER"
-          check_required "$TARGET_DOMAIN_NAME" "environment variable TARGET_DOMAIN_NAME"
+          check_required "$UUID" "deployment UUID value"
+          check_required "$REMOTE_SERVER_IP_ADDRESS" "deployment remote server IP address"
+          check_required "$REMOTE_SERVER_USER" "deployment remote server user"
+          check_required "$TARGET_DOMAIN_NAME" "deployment target domain name"
 
           if [ "$missing" -ne 0 ]; then
             exit 1
@@ -111,14 +198,14 @@ jobs:
             echo "$SSH_PUBLIC_KEY" > ~/.ssh/id_rsa.pub
             chmod 644 ~/.ssh/id_rsa.pub
           fi
-          ssh-keyscan -H "${{ vars.REMOTE_SERVER_IP_ADDRESS }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$REMOTE_SERVER_IP_ADDRESS" >> ~/.ssh/known_hosts
 
       - name: Create dynamic inventory
         run: |
-          printf '%s\n' \
-            '[remote]' \
-            'remote ansible_host=${{ vars.REMOTE_SERVER_IP_ADDRESS }} ansible_user=${{ vars.REMOTE_SERVER_USER }} ansible_ssh_private_key_file=~/.ssh/id_rsa ansible_python_interpreter=/usr/bin/python3 ansible_become=true ansible_become_method=sudo' \
-            > ansible/inventory/remote.ini
+          cat <<EOF > ansible/inventory/remote.ini
+[remote]
+remote ansible_host=${REMOTE_SERVER_IP_ADDRESS} ansible_user=${REMOTE_SERVER_USER} ansible_ssh_private_key_file=~/.ssh/id_rsa ansible_python_interpreter=/usr/bin/python3 ansible_become=true ansible_become_method=sudo
+EOF
 
       - name: Run Ansible playbook
         env:
@@ -126,7 +213,7 @@ jobs:
         run: |
           ansible-playbook -vv ansible/playbooks/site.yml \
             -i ansible/inventory/remote.ini \
-            --extra-vars "xray_domain=${{ vars.TARGET_DOMAIN_NAME }} xray_email=${{ secrets.EMAIL }} xray_uuid=${{ secrets.UUID }}"
+            --extra-vars "xray_domain=$TARGET_DOMAIN_NAME xray_email=${{ secrets.EMAIL }} xray_uuid=$XRAY_UUID"
 
       - name: Cleanup SSH key
         if: always()
@@ -136,15 +223,15 @@ jobs:
       - name: Display client connection details
         if: success()
         env:
-          XRAY_DOMAIN: ${{ vars.TARGET_DOMAIN_NAME }}
-          XRAY_UUID: ${{ secrets.UUID }}
+          XRAY_DOMAIN: ${{ env.TARGET_DOMAIN_NAME }}
+          XRAY_UUID: ${{ env.XRAY_UUID }}
           XRAY_FLOW: xtls-rprx-vision
           XRAY_PORT: ${{ vars.XRAY_INBOUND_PORT }}
         run: |
           set -eo pipefail
 
-          DOMAIN="${XRAY_DOMAIN}"
-          UUID="${XRAY_UUID}"
+          DOMAIN="$(printf '%s' "${XRAY_DOMAIN}")"
+          UUID="$(printf '%s' "${XRAY_UUID}")"
           FLOW="${XRAY_FLOW}"
           PORT="${XRAY_PORT:-}"
 

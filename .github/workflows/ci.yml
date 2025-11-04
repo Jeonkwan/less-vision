@@ -28,10 +28,3 @@ jobs:
         run: |
           ansible-playbook --syntax-check ansible/playbooks/site.yml -i ansible/inventory/hosts.ini
 
-  deploy-check:
-    name: Deployment check (flatwhite)
-    needs: ansible-syntax
-    uses: ./.github/workflows/deploy.yml
-    with:
-      environment: flatwhite
-    secrets: inherit
