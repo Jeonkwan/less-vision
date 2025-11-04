@@ -202,10 +202,14 @@ jobs:
 
       - name: Create dynamic inventory
         run: |
-          cat <<EOF > ansible/inventory/remote.ini
-[remote]
-remote ansible_host=${REMOTE_SERVER_IP_ADDRESS} ansible_user=${REMOTE_SERVER_USER} ansible_ssh_private_key_file=~/.ssh/id_rsa ansible_python_interpreter=/usr/bin/python3 ansible_become=true ansible_become_method=sudo
-EOF
+          set -euo pipefail
+
+          mkdir -p ansible/inventory
+
+          printf '%s\n' \
+            '[remote]' \
+            "remote ansible_host=${REMOTE_SERVER_IP_ADDRESS} ansible_user=${REMOTE_SERVER_USER} ansible_ssh_private_key_file=~/.ssh/id_rsa ansible_python_interpreter=/usr/bin/python3 ansible_become=true ansible_become_method=sudo" \
+            > ansible/inventory/remote.ini
 
       - name: Run Ansible playbook
         env:
