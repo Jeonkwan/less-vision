@@ -10,21 +10,17 @@ jobs:
   ansible-syntax:
     name: Ansible syntax check
     runs-on: ubuntu-latest
+    container:
+      image: willhallonline/ansible:2.16.14-ubuntu-22.04
+    env:
+      ANSIBLE_CONFIG: ansible.cfg
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Ansible
-        run: |
-          python -m pip install --upgrade pip
-          pip install ansible-core==2.16.6
+      - name: Verify bundled Ansible version
+        run: ansible --version
 
       - name: Run ansible-playbook syntax check
-        run: |
-          ansible-playbook --syntax-check ansible/playbooks/site.yml -i ansible/inventory/hosts.ini
+        run: ansible-playbook --syntax-check ansible/playbooks/site.yml -i ansible/inventory/hosts.ini
 
