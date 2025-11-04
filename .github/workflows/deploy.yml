@@ -3,6 +3,10 @@ run-name: >-
   Deploy ${{ github.event.inputs.environment || inputs.environment || 'environment' }}
   to ${{ github.event.inputs.target_domain_name || inputs.target_domain_name || 'domain' }}
 
+permissions:
+  contents: read
+  actions: write
+
 on:
   workflow_dispatch:
     inputs:
@@ -166,6 +170,8 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import sys
+          import urllib.error
           import urllib.request
           from datetime import datetime, timedelta, timezone
 
@@ -185,8 +191,20 @@ jobs:
           request.add_header("Authorization", f"Bearer {os.environ['GITHUB_TOKEN']}")
           request.add_header("Accept", "application/vnd.github+json")
 
-          with urllib.request.urlopen(request) as response:
-            response.read()
+          try:
+            with urllib.request.urlopen(request) as response:
+              response.read()
+          except urllib.error.HTTPError as error:
+            print(
+              f"::warning::Unable to update workflow run name (status={error.code}): "
+              f"{error.reason}",
+              file=sys.stderr,
+            )
+          except urllib.error.URLError as error:
+            print(
+              f"::warning::Unable to update workflow run name: {error.reason}",
+              file=sys.stderr,
+            )
           PY
 
       - name: Install Ansible
