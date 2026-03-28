@@ -28,7 +28,9 @@ Automated deployment toolkit for running [Xray](https://github.com/XTLS/Xray-cor
 │   └── usage.md
 ├── specs.md
 ├── terraform/
-│   └── examples/
+│   ├── examples/
+│   │   └── main.tf
+│   └── github-repos/
 │       └── main.tf
 └── .github/
     └── workflows/

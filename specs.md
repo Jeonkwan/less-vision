@@ -23,7 +23,7 @@ This document tracks the evolving specification for the automated deployment of 
 - **Variables**: All runtime values (domain, email, UUID, ports, image, ALPN, etc.) are provided through Ansible variables with sane defaults where possible.
 - **Shared Defaults**: `ansible/group_vars/all.yml` centralises filesystem layout, image selection, and runtime toggles for every role to avoid hidden dependencies.
 - **Documentation**: `docs/usage.md` captures prerequisites, variable matrix, Terraform usage, GitHub Actions deployment notes, and verification steps.
-- **Examples**: Inventory stub at `ansible/inventory/hosts.ini` and Terraform snippet under `terraform/examples/` (to be expanded with additional scenarios as needed).
+- **Examples**: Inventory stub at `ansible/inventory/hosts.ini`, Terraform VM-provisioning snippet under `terraform/examples/`, and a GitHub repository creation configuration under `terraform/github-repos/` (creates the `gz-metro-expert` repository via the GitHub Terraform provider).
 - **Automation**:
   - `.github/workflows/ci.yml` installs Ansible and executes a syntax check on every push, pull request, or manual dispatch.
   - `.github/workflows/deploy.yml` validates requested environments, enforces required secrets/variables, generates a temporary inventory, runs the playbook remotely, and outputs ready-to-import client URIs.
